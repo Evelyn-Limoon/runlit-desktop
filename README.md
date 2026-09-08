@@ -29,15 +29,24 @@ This repository contains a runnable Windows application foundation:
 
 ## Install RunLit on Windows
 
-Download either the x64 MSI or Setup executable produced by the Windows release
-workflow. The installed application includes its own Node.js runtime, bundled
-daemon, and Node.js license; end users do not need Node.js, npm, or Rust. Starting
-the installed `Runlit` application automatically starts the localhost daemon and
-stores data in the current user's application-data directory.
+Open the [GitHub Releases page](https://github.com/Evelyn-Limoon/runlit-desktop/releases)
+and select `v0.1.0-preview.1`. Download either the x64 MSI or the Setup executable.
+The installed application includes its own Node.js runtime, bundled daemon, and
+Node.js license; end users do not need Node.js, npm, or Rust. Starting the installed
+`Runlit` application automatically starts the localhost daemon and stores data in
+the current user's application-data directory.
 
-The 0.1.0 development packages are not code-signed yet, so Windows may show an
-unknown-publisher warning. Code signing remains a release requirement before a
-public production launch.
+`v0.1.0-preview.1` is an unsigned development preview. Windows may display an
+unknown-publisher or Microsoft Defender SmartScreen warning. Only download RunLit
+from this repository's Releases page, and compare the downloaded file with the
+published `SHA256SUMS.txt` before installing:
+
+```powershell
+Get-FileHash -Algorithm SHA256 .\Runlit_0.1.0_x64-setup.exe
+```
+
+Code signing remains a requirement before a public production launch. Automatic
+updates are not included in this preview; install a newer release manually.
 
 ## Start from source on Windows
 

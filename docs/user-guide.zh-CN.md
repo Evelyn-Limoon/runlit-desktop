@@ -1,6 +1,6 @@
 # RunLit 用户手册
 
-> 状态：GitHub 公开发布准备稿
+> 状态：GitHub 未签名公开预览版
 > 当前产品范围：Windows x64、Codex 与 WorkBuddy AI、本地优先
 
 [English](user-guide.en.md) | [开发者适配器指南](adapter-development.md)
@@ -40,11 +40,11 @@ RunLit 自身通过本地数据完成任务检测，不依赖互联网刷新；A
 
 ### 关于开发预览版
 
-0.1.0 开发安装包目前尚未代码签名。通过浏览器下载时，Windows 可能显示“未知发布者”或 SmartScreen 提示。正式 GitHub Release 必须明确标注其是否已签名，并同时发布安装包的 SHA-256 校验值。
+`v0.1.0-preview.1` 安装包尚未代码签名。通过浏览器下载时，Windows 可能显示“未知发布者”或 SmartScreen 提示。GitHub Release 会明确标注签名状态，并同时发布安装包的 SHA-256 校验值。
 
 ## 4. 从 GitHub 安装
 
-正式公开后，请从项目仓库的 **Releases** 页面下载安装包，不要从第三方下载站获取。
+请只从项目仓库的 [**Releases** 页面](https://github.com/Evelyn-Limoon/runlit-desktop/releases)下载安装包，不要从第三方下载站获取。
 
 1. 打开最新的 RunLit Release。
 2. 阅读版本说明、支持范围和已知问题。

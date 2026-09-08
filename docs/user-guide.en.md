@@ -1,6 +1,6 @@
 # RunLit User Guide
 
-> Status: draft for a future public GitHub release
+> Status: unsigned public GitHub preview
 > Current product scope: Windows x64, Codex and WorkBuddy AI, local-first
 
 [简体中文](user-guide.zh-CN.md) | [Adapter development guide](adapter-development.md)
@@ -40,11 +40,11 @@ RunLit detects tasks from local data and does not need internet access to refres
 
 ### Development preview warning
 
-The 0.1.0 development packages are not currently code-signed. Windows may show an Unknown Publisher or SmartScreen warning when they are downloaded through a browser. A public GitHub Release must clearly state whether its packages are signed and must publish SHA-256 checksums for the installers.
+The `v0.1.0-preview.1` packages are not code-signed. Windows may show an Unknown Publisher or SmartScreen warning when they are downloaded through a browser. The GitHub Release states the signing status and publishes SHA-256 checksums for the installers.
 
 ## 4. Install from GitHub
 
-After the public launch, download RunLit only from the repository's **Releases** page, not from a third-party download site.
+Download RunLit only from the repository's [**Releases** page](https://github.com/Evelyn-Limoon/runlit-desktop/releases), not from a third-party download site.
 
 1. Open the latest RunLit Release.
 2. Read the release notes, supported scope, and known issues.

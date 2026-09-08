@@ -2,7 +2,9 @@
 
 All notable changes to RunLit are documented here.
 
-## [0.1.0] - Unreleased
+## [Unreleased]
+
+## [0.1.0-preview.1] - 2026-09-08
 
 ### Added
 
@@ -21,4 +23,5 @@ All notable changes to RunLit are documented here.
   an installation-scoped bearer token.
 - Provider chat bodies are not stored by the built-in adapters.
 
-> The first public installer is a development preview until it is code-signed.
+> This public installer is an unsigned development preview. Windows may display
+> an unknown-publisher or Microsoft Defender SmartScreen warning.

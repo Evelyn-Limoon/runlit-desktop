@@ -17,9 +17,10 @@ This document describes the release workflow for RunLit maintainers.
 
 ## Publish
 
-Create and push an annotated tag in the form `vX.Y.Z`. The `Windows release`
-workflow builds the MSI and NSIS installers, writes `SHA256SUMS.txt`, and creates
-a GitHub Release for the tag.
+Create and push an annotated tag in the form `vX.Y.Z` for a production release or
+`vX.Y.Z-preview.N` for an unsigned preview. The `Windows release` workflow builds
+the MSI and NSIS installers, writes `SHA256SUMS.txt`, and creates a GitHub Release
+for the tag. Tags containing a hyphen are automatically marked as pre-releases.
 
 ## Verify the release
 
