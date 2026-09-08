@@ -3,6 +3,10 @@
 > 状态：GitHub 未签名公开预览版
 > 当前产品范围：Windows x64、Codex 与 WorkBuddy AI、本地优先
 
+RunLit 已选择 SignPath Foundation 开源计划作为后续 Windows 签名方案，
+但目前尚未通过审核。免费代码签名由 SignPath.io 提供，证书由 SignPath
+Foundation 提供。详情见[代码签名政策](code-signing-policy.md)。
+
 [English](user-guide.en.md) | [开发者适配器指南](adapter-development.md)
 
 ## 1. RunLit 是什么

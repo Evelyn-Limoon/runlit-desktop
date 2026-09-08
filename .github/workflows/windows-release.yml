@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 env:
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
@@ -22,11 +23,19 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.RELEASE_TAG }}
       - name: Validate release tag
         shell: pwsh
         run: |
           if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$') {
             throw "Invalid release tag: $env:RELEASE_TAG"
+          }
+          $head = git rev-parse HEAD
+          $tagCommit = git rev-list -n 1 $env:RELEASE_TAG
+          if ($head -ne $tagCommit) {
+            throw "Checked-out commit $head does not match $($env:RELEASE_TAG) at $tagCommit."
           }
       - uses: actions/setup-node@v4
         with:
@@ -45,6 +54,107 @@ jobs:
         run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
       - name: Build Windows bundles
         run: npm run tauri -- build
+      - name: Stage Windows release artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-input | Out-Null
+          $msi = Resolve-Path 'apps/desktop/src-tauri/target/release/bundle/msi/Runlit_*.msi'
+          $setup = Resolve-Path 'apps/desktop/src-tauri/target/release/bundle/nsis/Runlit_*-setup.exe'
+          Copy-Item -LiteralPath $msi.Path -Destination release-input
+          Copy-Item -LiteralPath $setup.Path -Destination release-input
+      - name: Upload unsigned artifact for SignPath origin verification
+        id: unsigned-artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: runlit-windows-unsigned-${{ env.RELEASE_TAG }}
+          path: release-input/*
+          if-no-files-found: error
+          retention-days: 7
+      - name: Require SignPath configuration for stable releases
+        if: ${{ !contains(env.RELEASE_TAG, '-') }}
+        shell: pwsh
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          SIGNPATH_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+        run: |
+          $required = @(
+            'SIGNPATH_API_TOKEN',
+            'SIGNPATH_ORGANIZATION_ID',
+            'SIGNPATH_PROJECT_SLUG',
+            'SIGNPATH_SIGNING_POLICY_SLUG',
+            'SIGNPATH_ARTIFACT_CONFIGURATION_SLUG'
+          )
+          foreach ($name in $required) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              throw "Stable releases require GitHub Actions setting: $name"
+            }
+          }
+      - name: Sign stable release with SignPath Foundation
+        if: ${{ !contains(env.RELEASE_TAG, '-') }}
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.unsigned-artifact.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: release-output
+      - name: Preserve explicitly unsigned preview artifacts
+        if: ${{ contains(env.RELEASE_TAG, '-') }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-output | Out-Null
+          Copy-Item -Path release-input/* -Destination release-output
+      - name: Verify stable release signatures
+        if: ${{ !contains(env.RELEASE_TAG, '-') }}
+        shell: pwsh
+        run: |
+          $artifacts = Get-ChildItem -Path release-output -File |
+            Where-Object Extension -in '.exe', '.msi'
+          if ($artifacts.Count -ne 2) {
+            throw "Expected two signed Windows installers, found $($artifacts.Count)."
+          }
+          foreach ($artifact in $artifacts) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $artifact.FullName
+            if ($signature.Status -ne 'Valid') {
+              throw "$($artifact.Name) has invalid Authenticode status: $($signature.Status)"
+            }
+            if ($signature.SignerCertificate.Subject -notmatch 'SignPath Foundation') {
+              throw "$($artifact.Name) was not signed by SignPath Foundation."
+            }
+          }
+      - name: Clean-runner install, launch, exit, and uninstall smoke test
+        shell: pwsh
+        run: |
+          $env:RUNLIT_CODEX_ADAPTER = '0'
+          $setup = (Resolve-Path 'release-output/Runlit_*-setup.exe').Path
+          $installer = Start-Process $setup -ArgumentList '/S' -PassThru -Wait
+          if ($installer.ExitCode -ne 0) { throw "Installer exited with $($installer.ExitCode)." }
+          $app = Join-Path $env:LOCALAPPDATA 'Runlit/runlit-desktop.exe'
+          if (-not (Test-Path -LiteralPath $app)) { throw "Installed app is missing: $app" }
+          $desktop = Start-Process $app -PassThru
+          $ready = $false
+          for ($attempt = 0; $attempt -lt 80; $attempt += 1) {
+            Start-Sleep -Milliseconds 250
+            try {
+              $health = Invoke-RestMethod -Uri 'http://127.0.0.1:47831/health' -TimeoutSec 2
+              if ($health.service -eq 'runlit-daemon') { $ready = $true; break }
+            } catch {}
+          }
+          if (-not $ready) { throw 'Installed RunLit daemon did not become healthy.' }
+          Invoke-RestMethod -Uri 'http://127.0.0.1:47831/shutdown' -Method Post -Headers @{ Origin = 'http://tauri.localhost' } -TimeoutSec 3 | Out-Null
+          if (-not $desktop.HasExited) { Stop-Process -Id $desktop.Id -Force }
+          $uninstaller = Join-Path $env:LOCALAPPDATA 'Runlit/uninstall.exe'
+          if (-not (Test-Path -LiteralPath $uninstaller)) { throw "Uninstaller is missing: $uninstaller" }
+          $remove = Start-Process $uninstaller -ArgumentList '/S' -PassThru -Wait
+          if ($remove.ExitCode -ne 0) { throw "Uninstaller exited with $($remove.ExitCode)." }
+          if (Test-Path -LiteralPath $app) { throw 'Installed executable remains after uninstall.' }
       - name: Smoke-test the bundled daemon runtime
         shell: pwsh
         run: |
@@ -70,7 +180,7 @@ jobs:
       - name: Generate SHA-256 checksums
         shell: pwsh
         run: |
-          $root = Resolve-Path 'apps/desktop/src-tauri/target/release/bundle'
+          $root = Resolve-Path 'release-output'
           Get-ChildItem -Path $root -Recurse -File | ForEach-Object {
             $relative = $_.FullName.Substring($root.Path.Length + 1).Replace('\\', '/')
             "$(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256 | Select-Object -ExpandProperty Hash) *$relative"
@@ -86,7 +196,12 @@ jobs:
               'Download either the x64 Setup executable or MSI below, then verify it against `SHA256SUMS.txt`. RunLit does not include automatic updates in this preview.'
             )
           } else {
-            $notice = @('Download either the x64 Setup executable or MSI below, then verify it against `SHA256SUMS.txt`.')
+            $notice = @(
+              '> [!NOTE]'
+              '> Free code signing provided by SignPath.io, certificate by SignPath Foundation.'
+              ''
+              'Both Windows installers have been Authenticode-verified in the release workflow. Download either installer below, then verify it against `SHA256SUMS.txt`.'
+            )
           }
           $notice | Set-Content -LiteralPath RELEASE_NOTICE.md -Encoding utf8
       - name: Create GitHub Release
@@ -99,6 +214,6 @@ jobs:
           body_path: RELEASE_NOTICE.md
           fail_on_unmatched_files: true
           files: |
-            apps/desktop/src-tauri/target/release/bundle/**/*.msi
-            apps/desktop/src-tauri/target/release/bundle/**/*.exe
+            release-output/*.msi
+            release-output/*.exe
             SHA256SUMS.txt

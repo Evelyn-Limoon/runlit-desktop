@@ -10,6 +10,11 @@ RunLit is a local-first Windows desktop observer and result navigator for AI wor
 >
 > RunLit observes existing AI tools. It does not launch, control, or impersonate them.
 
+RunLit has selected the SignPath Foundation open-source program for future
+Windows signatures. The application is not yet approved, so the current preview
+remains unsigned. Free code signing provided by SignPath.io, certificate by
+SignPath Foundation. See the [code signing policy](docs/code-signing-policy.md).
+
 ## What you can do
 
 - **Watch multiple AI tools in one place.** Codex and WorkBuddy AI are built in; other tools that create local files can be connected through an output folder.
@@ -94,6 +99,8 @@ Built-in adapters retain only the identifiers, state, workspace, timestamps, evi
 - [详细中文手册](docs/user-guide.zh-CN.md)
 - [Report a functional problem](https://github.com/Evelyn-Limoon/runlit-desktop/issues)
 - [Security policy](SECURITY.md)
+- [Privacy policy](PRIVACY.md)
+- [Code signing policy](docs/code-signing-policy.md)
 
 Before posting logs publicly, remove user names, local paths, session IDs, tokens, and chat content.
 

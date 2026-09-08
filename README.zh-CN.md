@@ -10,6 +10,11 @@ RunLit 是一款本地优先的 Windows 桌面 AI 任务观察与成果导航工
 >
 > RunLit 只观察已经运行的 AI 工具，不负责发起、控制或冒充这些工具。
 
+RunLit 已选择 SignPath Foundation 开源计划作为后续 Windows 签名方案，
+但目前尚未通过审核，因此当前预览版仍然是未签名版本。免费代码签名由
+SignPath.io 提供，证书由 SignPath Foundation 提供。详情见
+[代码签名政策](docs/code-signing-policy.md)。
+
 ## 它能做什么
 
 - **集中查看多个 AI 工具。** 已内置 Codex 和 WorkBuddy AI；其他会生成本地文件的工具可以通过成果目录接入。
@@ -94,6 +99,8 @@ RunLit 只监听 `127.0.0.1`，Windows 安装版数据默认保存在：
 - [Detailed English guide](docs/user-guide.en.md)
 - [反馈普通功能问题](https://github.com/Evelyn-Limoon/runlit-desktop/issues)
 - [安全政策](SECURITY.md)
+- [隐私政策](PRIVACY.md)
+- [代码签名政策](docs/code-signing-policy.md)
 
 公开提交日志前，请删除用户名、本地路径、会话 ID、令牌和聊天内容。
 

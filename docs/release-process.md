@@ -12,23 +12,44 @@ This document describes the release workflow for RunLit maintainers.
    passes, and the installer succeeds on a clean Windows runner.
 5. Review dependencies, third-party notices, and the public-repository diff for
    credentials or local data.
-6. Decide whether the installers are code-signed. If they are not signed, label
-   the release as an unsigned development preview in its release notes.
+6. Confirm the requirements in [`code-signing-policy.md`](code-signing-policy.md).
+   A stable release requires SignPath Foundation signing. An unsigned build must
+   use a hyphenated preview tag and state that it is unsigned.
 
 ## Publish
 
-Create and push an annotated tag in the form `vX.Y.Z` for a production release or
-`vX.Y.Z-preview.N` for an unsigned preview. The `Windows release` workflow builds
-the MSI and NSIS installers, writes `SHA256SUMS.txt`, and creates a GitHub Release
-for the tag. Tags containing a hyphen are automatically marked as pre-releases.
+Create and push an annotated tag in the form `vX.Y.Z` for a signed production
+release or `vX.Y.Z-preview.N` for an unsigned preview. The `Windows release`
+workflow checks out the exact tag and builds the MSI and NSIS installers.
+
+For a stable tag, the workflow submits the GitHub Actions artifact to SignPath,
+waits for approval and signing, verifies the returned Authenticode signatures,
+then writes `SHA256SUMS.txt`. A stable release fails closed if the SignPath
+configuration or valid signatures are missing. Preview tags skip SignPath and
+remain explicitly unsigned. Tags containing a hyphen are marked as pre-releases.
+
+After SignPath approval, configure these repository values:
+
+| Kind | Name | Value |
+| --- | --- | --- |
+| Actions secret | `SIGNPATH_API_TOKEN` | CI-user token created in SignPath |
+| Actions variable | `SIGNPATH_ORGANIZATION_ID` | SignPath organization UUID |
+| Actions variable | `SIGNPATH_PROJECT_SLUG` | RunLit project slug |
+| Actions variable | `SIGNPATH_SIGNING_POLICY_SLUG` | Approved release policy slug |
+| Actions variable | `SIGNPATH_ARTIFACT_CONFIGURATION_SLUG` | Approved Windows artifact configuration slug |
+
+The signed-artifact action is pinned in the workflow. Update that commit only
+after reviewing an official SignPath release.
 
 ## Verify the release
 
 1. Download both assets from the Release page and verify their SHA-256 values.
-2. Install each package on a clean Windows x64 test account.
-3. Launch RunLit; verify the tray/orb appears and the local daemon responds.
-4. Verify an installed application exits cleanly and can restart.
-5. Ensure the release notes state supported adapters, platform scope, signing
+2. For a stable release, run `Get-AuthenticodeSignature` on both assets and
+   confirm `Valid` status and the approved SignPath Foundation signer.
+3. Install each package on a clean Windows x64 test account.
+4. Launch RunLit; verify the tray/orb appears and the local daemon responds.
+5. Verify an installed application exits cleanly and can restart.
+6. Ensure the release notes state supported adapters, platform scope, signing
    status, and known limitations.
 
 Do not publish the internal real-data integration plan or local test databases.

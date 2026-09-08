@@ -8,6 +8,11 @@
 >
 > 状态 / Status: unsigned public preview / 未签名公开预览版
 
+RunLit 已选择 SignPath Foundation 开源计划作为后续 Windows 签名方案，
+但当前版本尚未获得签名。Free code signing provided by SignPath.io,
+certificate by SignPath Foundation. See the
+[code signing policy / 代码签名政策](code-signing-policy.md).
+
 ---
 
 ## 中文指南
@@ -212,6 +217,8 @@ See the [detailed English guide](user-guide.en.md) for full troubleshooting.
 
 - [GitHub Issues](https://github.com/Evelyn-Limoon/runlit-desktop/issues)
 - [Security policy / 安全政策](../SECURITY.md)
+- [Privacy policy / 隐私政策](../PRIVACY.md)
+- [Code signing policy / 代码签名政策](code-signing-policy.md)
 - [MIT License](../LICENSE)
 
 Provider names and marks identify observed task sources and do not imply sponsorship, endorsement, or an official relationship with RunLit. AI 工具名称与标志仅用于标识任务来源，不代表相关品牌赞助、认可 RunLit，或与 RunLit 存在官方合作关系。

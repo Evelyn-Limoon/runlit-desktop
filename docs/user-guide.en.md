@@ -3,6 +3,11 @@
 > Status: unsigned public GitHub preview
 > Current product scope: Windows x64, Codex and WorkBuddy AI, local-first
 
+RunLit has selected the SignPath Foundation open-source program for future
+Windows signatures, but has not yet been approved. Free code signing provided
+by SignPath.io, certificate by SignPath Foundation. See the
+[code signing policy](code-signing-policy.md).
+
 [简体中文](user-guide.zh-CN.md) | [Adapter development guide](adapter-development.md)
 
 ## 1. What RunLit does
