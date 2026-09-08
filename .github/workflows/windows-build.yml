@@ -1,0 +1,100 @@
+name: Windows build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test-and-package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install dependencies
+        run: npm ci
+      - name: Test
+        run: npm test
+      - name: Build application
+        run: npm run build
+      - name: Prepare native bundle resources
+        run: npm run prepare:bundle
+      - name: Test native window logic
+        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - name: Smoke-test the real daemon entrypoint
+        shell: pwsh
+        run: |
+          $env:RUNLIT_CODEX_ADAPTER = '0'
+          $daemon = Start-Process node -ArgumentList 'apps/daemon/dist/index.js' -PassThru -WindowStyle Hidden
+          try {
+            $ready = $false
+            for ($attempt = 0; $attempt -lt 30; $attempt += 1) {
+              Start-Sleep -Milliseconds 200
+              try {
+                $health = Invoke-RestMethod -Uri 'http://127.0.0.1:47831/health' -TimeoutSec 2
+                if ($health.service -eq 'runlit-daemon') { $ready = $true; break }
+              } catch {}
+            }
+            if (-not $ready) { throw 'RunLit daemon smoke test failed.' }
+          } finally {
+            if (-not $daemon.HasExited) { Stop-Process -Id $daemon.Id -Force }
+          }
+      - name: Build Windows bundles
+        run: npm run tauri -- build
+      - name: Smoke-test the bundled daemon runtime
+        shell: pwsh
+        run: |
+          $env:RUNLIT_PORT = '47839'
+          $env:RUNLIT_DATA_DIR = Join-Path $env:RUNNER_TEMP 'runlit-bundle-smoke'
+          $env:RUNLIT_CODEX_ADAPTER = '0'
+          $runtime = 'apps/desktop/src-tauri/target/release/resources/runtime/node.exe'
+          $daemonEntry = 'apps/desktop/src-tauri/target/release/resources/daemon/runlit-daemon.cjs'
+          $daemon = Start-Process $runtime -ArgumentList (Split-Path $daemonEntry -Leaf) -WorkingDirectory (Split-Path $daemonEntry) -PassThru -WindowStyle Hidden
+          try {
+            $ready = $false
+            for ($attempt = 0; $attempt -lt 30; $attempt += 1) {
+              Start-Sleep -Milliseconds 200
+              try {
+                $health = Invoke-RestMethod -Uri 'http://127.0.0.1:47839/health' -TimeoutSec 2
+                if ($health.service -eq 'runlit-daemon') { $ready = $true; break }
+              } catch {}
+            }
+            if (-not $ready) { throw 'Bundled RunLit daemon smoke test failed.' }
+          } finally {
+            if (-not $daemon.HasExited) { Stop-Process -Id $daemon.Id -Force }
+          }
+      - name: Clean-runner install, launch, exit, and uninstall smoke test
+        shell: pwsh
+        run: |
+          $setup = (Resolve-Path 'apps/desktop/src-tauri/target/release/bundle/nsis/Runlit_*-setup.exe').Path
+          $installer = Start-Process $setup -ArgumentList '/S' -PassThru -Wait
+          if ($installer.ExitCode -ne 0) { throw "Installer exited with $($installer.ExitCode)." }
+          $app = Join-Path $env:LOCALAPPDATA 'Runlit/runlit-desktop.exe'
+          if (-not (Test-Path -LiteralPath $app)) { throw "Installed app is missing: $app" }
+          $desktop = Start-Process $app -PassThru
+          $ready = $false
+          for ($attempt = 0; $attempt -lt 80; $attempt += 1) {
+            Start-Sleep -Milliseconds 250
+            try {
+              $health = Invoke-RestMethod -Uri 'http://127.0.0.1:47831/health' -TimeoutSec 2
+              if ($health.service -eq 'runlit-daemon') { $ready = $true; break }
+            } catch {}
+          }
+          if (-not $ready) { throw 'Installed RunLit daemon did not become healthy.' }
+          Invoke-RestMethod -Uri 'http://127.0.0.1:47831/shutdown' -Method Post -Headers @{ Origin = 'http://tauri.localhost' } -TimeoutSec 3 | Out-Null
+          if (-not $desktop.HasExited) { Stop-Process -Id $desktop.Id -Force }
+          $uninstaller = Join-Path $env:LOCALAPPDATA 'Runlit/uninstall.exe'
+          if (-not (Test-Path -LiteralPath $uninstaller)) { throw "Uninstaller is missing: $uninstaller" }
+          $remove = Start-Process $uninstaller -ArgumentList '/S' -PassThru -Wait
+          if ($remove.ExitCode -ne 0) { throw "Uninstaller exited with $($remove.ExitCode)." }
+          if (Test-Path -LiteralPath $app) { throw 'Installed executable remains after uninstall.' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runlit-windows-native-bundle
+          path: apps/desktop/src-tauri/target/release/bundle/**
+          if-no-files-found: error

@@ -1,0 +1,48 @@
+name: Bug report
+description: Report a reproducible RunLit problem.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include private task contents, access tokens, or personally identifiable information.
+  - type: input
+    id: version
+    attributes:
+      label: RunLit version
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+  - type: dropdown
+    id: adapter
+    attributes:
+      label: Affected area
+      options:
+        - Desktop interface
+        - Codex adapter
+        - WorkBuddy adapter
+        - Installer or startup
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: Describe only non-sensitive steps.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
