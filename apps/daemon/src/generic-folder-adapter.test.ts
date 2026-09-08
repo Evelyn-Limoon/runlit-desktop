@@ -6,6 +6,8 @@ import test from "node:test";
 import { RunlitDatabase } from "./database.js";
 import { GenericFolderAdapter, validateGenericFolderConfig } from "./generic-folder-adapter.js";
 
+const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
 test("validates a portable custom folder adapter configuration", () => {
   const root = join(tmpdir(), `runlit-custom-config-${Date.now()}`);
   mkdirSync(root, { recursive: true });
@@ -47,6 +49,9 @@ test("creates one completed version for one stable local output batch", async ()
   try {
     await adapter.start();
     assert.equal(database.snapshot().tasks.length, 0);
+    // Cross the filesystem timestamp boundary so the new file cannot share the
+    // adapter baseline mtime on filesystems with millisecond-level precision.
+    await wait(10);
     writeFileSync(join(root, "result.md"), "# result\n", "utf8");
     await adapter.refresh();
     const tasks = database.snapshot().tasks;

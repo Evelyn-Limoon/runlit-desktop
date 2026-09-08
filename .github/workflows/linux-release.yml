@@ -1,0 +1,131 @@
+name: Linux release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  RELEASE_TAG: ${{ github.ref_name }}
+
+jobs:
+  package-test-and-upload:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate release tag
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]
+          test "$(git rev-parse HEAD)" = "$(git rev-list -n 1 "$RELEASE_TAG")"
+      - name: Install Tauri Linux prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libfuse2 \
+            xvfb \
+            dbus-x11 \
+            xdg-utils
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install dependencies
+        run: npm ci
+      - name: Test
+        run: npm test
+      - name: Build application
+        run: npm run build
+      - name: Prepare Linux daemon bundle
+        run: npm run prepare:bundle
+      - name: Test native window logic
+        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - name: Build Linux bundles
+        run: npm run tauri -- build
+      - name: Inspect and stage Linux packages
+        run: |
+          set -euo pipefail
+          mkdir -p release-linux
+          deb=$(find apps/desktop/src-tauri/target/release/bundle/deb -maxdepth 1 -name '*.deb' -print -quit)
+          appimage=$(find apps/desktop/src-tauri/target/release/bundle/appimage -maxdepth 1 -name '*.AppImage' -print -quit)
+          test -n "$deb"
+          test -n "$appimage"
+          dpkg-deb --info "$deb" >/dev/null
+          test -x "$appimage"
+          cp "$deb" "$appimage" release-linux/
+      - name: Launch AppImage and verify installed daemon
+        env:
+          WEBKIT_DISABLE_COMPOSITING_MODE: "1"
+          NO_AT_BRIDGE: "1"
+          RUNLIT_CODEX_ADAPTER: "0"
+        run: |
+          set -euo pipefail
+          appimage=$(find release-linux -maxdepth 1 -name '*.AppImage' -print -quit)
+          export RUNLIT_APPIMAGE="$PWD/$appimage"
+          dbus-run-session -- bash <<'RUNLIT_SMOKE'
+          set -euo pipefail
+          xvfb-run -a "$RUNLIT_APPIMAGE" --appimage-extract-and-run >"$RUNNER_TEMP/runlit-release-appimage.log" 2>&1 &
+          desktop_pid=$!
+          cleanup() { kill "$desktop_pid" 2>/dev/null || true; }
+          trap cleanup EXIT
+          for attempt in {1..80}; do
+            if curl --fail --silent http://127.0.0.1:47831/health | grep -q 'runlit-daemon'; then
+              curl --fail --silent -X POST -H 'Origin: http://tauri.localhost' http://127.0.0.1:47831/shutdown >/dev/null
+              wait "$desktop_pid" || true
+              exit 0
+            fi
+            sleep 0.25
+          done
+          cat "$RUNNER_TEMP/runlit-release-appimage.log"
+          exit 1
+          RUNLIT_SMOKE
+      - name: Generate Linux SHA-256 checksums
+        run: |
+          (
+            cd release-linux
+            sha256sum *.deb *.AppImage > ../SHA256SUMS-linux.txt
+          )
+      - name: Wait for the Windows workflow to create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          release_url="https://api.github.com/repos/${{ github.repository }}/releases/tags/$RELEASE_TAG"
+          for attempt in {1..80}; do
+            if curl --fail --silent \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "$release_url" >/dev/null; then
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "Windows release was not created for $RELEASE_TAG within 20 minutes." >&2
+          exit 1
+      - name: Add Linux assets to the existing GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          fail_on_unmatched_files: true
+          files: |
+            release-linux/*.deb
+            release-linux/*.AppImage
+            SHA256SUMS-linux.txt
+
