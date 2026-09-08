@@ -149,7 +149,12 @@ fn start_bundled_daemon(app: &AppHandle) -> Result<(), String> {
     }
 
     let resource_dir = app.path().resource_dir().map_err(|error| error.to_string())?;
+    #[cfg(target_os = "windows")]
     let node = resource_dir.join("resources/runtime/node.exe");
+    #[cfg(target_os = "linux")]
+    let node = resource_dir.join("resources/runtime/node");
+    #[cfg(target_os = "macos")]
+    let node = resource_dir.join("resources/runtime/node");
     let daemon = resource_dir.join("resources/daemon/runlit-daemon.cjs");
     if !node.is_file() || !daemon.is_file() {
         return Err(format!(
@@ -408,7 +413,16 @@ pub fn run() {
             if let Some(icon) = app.default_window_icon() {
                 tray = tray.icon(icon.clone());
             }
-            tray.build(app)?;
+            let tray_result = tray.build(app);
+            #[cfg(target_os = "linux")]
+            if let Err(error) = tray_result {
+                // Some Linux desktop environments do not expose a StatusNotifier
+                // host. The floating orb remains a complete interaction entry, so
+                // lack of tray support must not prevent RunLit from starting.
+                eprintln!("RunLit tray is unavailable on this Linux desktop: {error}");
+            }
+            #[cfg(not(target_os = "linux"))]
+            tray_result?;
 
             if let Some(window) = app.get_webview_window("main") {
                 if let Some(monitor) = window.current_monitor()? {

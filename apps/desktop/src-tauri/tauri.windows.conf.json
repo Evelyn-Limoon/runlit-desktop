@@ -1,0 +1,11 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "targets": ["msi", "nsis"],
+    "resources": [
+      "resources/daemon/runlit-daemon.cjs",
+      "resources/runtime/node.exe",
+      "resources/runtime/LICENSE-node.txt"
+    ]
+  }
+}

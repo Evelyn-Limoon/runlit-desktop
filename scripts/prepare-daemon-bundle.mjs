@@ -1,15 +1,16 @@
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { build } from "esbuild";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const resourceRoot = join(repositoryRoot, "apps", "desktop", "src-tauri", "resources");
 const daemonOutput = join(resourceRoot, "daemon", "runlit-daemon.cjs");
-const runtimeOutput = join(resourceRoot, "runtime", "node.exe");
+const runtimeFileName = process.platform === "win32" ? "node.exe" : "node";
+const runtimeOutput = join(resourceRoot, "runtime", runtimeFileName);
 const licenseOutput = join(resourceRoot, "runtime", "LICENSE-node.txt");
 
-if (process.platform !== "win32") {
-  throw new Error("RunLit currently prepares a bundled daemon runtime only for Windows.");
+if (process.platform !== "win32" && process.platform !== "linux") {
+  throw new Error(`RunLit does not yet prepare a bundled daemon runtime for ${process.platform}.`);
 }
 
 await mkdir(dirname(daemonOutput), { recursive: true });
@@ -27,6 +28,7 @@ await build({
 });
 
 await copyFile(process.execPath, runtimeOutput);
+if (process.platform === "linux") await chmod(runtimeOutput, 0o755);
 const nodeLicensePath = join(dirname(process.execPath), "LICENSE");
 try {
   await copyFile(nodeLicensePath, licenseOutput);

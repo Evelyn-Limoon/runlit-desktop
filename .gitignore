@@ -2,6 +2,7 @@ node_modules/
 apps/desktop/src-tauri/resources/daemon/runlit-daemon.mjs
 apps/desktop/src-tauri/resources/daemon/runlit-daemon.cjs
 apps/desktop/src-tauri/resources/runtime/node.exe
+apps/desktop/src-tauri/resources/runtime/node
 apps/desktop/src-tauri/resources/runtime/LICENSE-node.txt
 dist/
 target/

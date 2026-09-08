@@ -1,0 +1,111 @@
+name: Linux build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test-package-and-launch:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Tauri Linux prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libfuse2 \
+            xvfb \
+            dbus-x11 \
+            xdg-utils
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install dependencies
+        run: npm ci
+      - name: Test
+        run: npm test
+      - name: Build application
+        run: npm run build
+      - name: Prepare Linux daemon bundle
+        run: npm run prepare:bundle
+      - name: Verify bundled Linux runtime
+        run: |
+          test -x apps/desktop/src-tauri/resources/runtime/node
+          file apps/desktop/src-tauri/resources/runtime/node | grep -q 'ELF 64-bit'
+      - name: Test native window logic
+        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - name: Smoke-test the real daemon entrypoint
+        run: |
+          set -euo pipefail
+          export RUNLIT_PORT=47839
+          export RUNLIT_DATA_DIR="$RUNNER_TEMP/runlit-linux-source-smoke"
+          export RUNLIT_CODEX_ADAPTER=0
+          node apps/daemon/dist/index.js >"$RUNNER_TEMP/runlit-source-daemon.log" 2>&1 &
+          daemon_pid=$!
+          trap 'kill "$daemon_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..40}; do
+            if curl --fail --silent http://127.0.0.1:47839/health | grep -q 'runlit-daemon'; then
+              exit 0
+            fi
+            sleep 0.25
+          done
+          cat "$RUNNER_TEMP/runlit-source-daemon.log"
+          exit 1
+      - name: Build Linux bundles
+        run: npm run tauri -- build --bundles deb,appimage
+      - name: Inspect Linux packages
+        run: |
+          set -euo pipefail
+          deb=$(find apps/desktop/src-tauri/target/release/bundle/deb -maxdepth 1 -name '*.deb' -print -quit)
+          appimage=$(find apps/desktop/src-tauri/target/release/bundle/appimage -maxdepth 1 -name '*.AppImage' -print -quit)
+          test -n "$deb"
+          test -n "$appimage"
+          dpkg-deb --info "$deb" >/dev/null
+          test -x "$appimage"
+      - name: Launch AppImage and verify installed daemon
+        env:
+          WEBKIT_DISABLE_COMPOSITING_MODE: "1"
+          NO_AT_BRIDGE: "1"
+          RUNLIT_CODEX_ADAPTER: "0"
+        run: |
+          set -euo pipefail
+          appimage=$(find apps/desktop/src-tauri/target/release/bundle/appimage -maxdepth 1 -name '*.AppImage' -print -quit)
+          export RUNLIT_APPIMAGE="$PWD/$appimage"
+          dbus-run-session -- bash <<'RUNLIT_SMOKE'
+          set -euo pipefail
+          xvfb-run -a "$RUNLIT_APPIMAGE" --appimage-extract-and-run >"$RUNNER_TEMP/runlit-appimage.log" 2>&1 &
+          desktop_pid=$!
+          cleanup() { kill "$desktop_pid" 2>/dev/null || true; }
+          trap cleanup EXIT
+          for attempt in {1..80}; do
+            if curl --fail --silent http://127.0.0.1:47831/health | grep -q 'runlit-daemon'; then
+              curl --fail --silent -X POST -H 'Origin: http://tauri.localhost' http://127.0.0.1:47831/shutdown >/dev/null
+              wait "$desktop_pid" || true
+              exit 0
+            fi
+            sleep 0.25
+          done
+          cat "$RUNNER_TEMP/runlit-appimage.log"
+          exit 1
+          RUNLIT_SMOKE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runlit-linux-x64-bundle
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/deb/*.deb
+            apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error

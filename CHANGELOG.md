@@ -4,6 +4,17 @@ All notable changes to RunLit are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Linux x64 packaging for Debian/Ubuntu (`.deb`) and portable desktop use (`.AppImage`).
+- Linux CI coverage for the shared application tests, native Rust tests, bundled daemon runtime, package inspection, and a headless AppImage launch.
+- A Linux source launcher at `scripts/start-runlit.sh`.
+
+### Changed
+
+- Bundled Node.js runtime selection and Tauri resources are now platform-specific; Windows continues to package `node.exe` into MSI/NSIS while Linux packages an executable ELF `node` runtime.
+- Linux desktops without a StatusNotifier tray host can still start and use the floating RunLit orb.
+
 ## [0.1.0-preview.2] - 2026-09-08
 
 ### Added

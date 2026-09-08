@@ -1,0 +1,11 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "targets": ["deb", "appimage"],
+    "resources": [
+      "resources/daemon/runlit-daemon.cjs",
+      "resources/runtime/node",
+      "resources/runtime/LICENSE-node.txt"
+    ]
+  }
+}
