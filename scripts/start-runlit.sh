@@ -20,7 +20,7 @@ if [[ ! -x "$desktop_binary" ]]; then
     npm ci
   fi
   npm run build
-  npm run tauri -- build --bundles deb,appimage
+  npm run tauri -- build
 fi
 
 if command -v codex >/dev/null 2>&1; then

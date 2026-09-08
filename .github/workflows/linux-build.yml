@@ -66,7 +66,7 @@ jobs:
           cat "$RUNNER_TEMP/runlit-source-daemon.log"
           exit 1
       - name: Build Linux bundles
-        run: npm run tauri -- build --bundles deb,appimage
+        run: npm run tauri -- build
       - name: Inspect Linux packages
         run: |
           set -euo pipefail
