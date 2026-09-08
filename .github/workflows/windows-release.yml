@@ -193,14 +193,14 @@ jobs:
               '> [!WARNING]'
               '> This is an unsigned development preview. Windows may display an unknown-publisher or Microsoft Defender SmartScreen warning.'
               ''
-              'Download either the x64 Setup executable or MSI below, then verify it against `SHA256SUMS.txt`. RunLit does not include automatic updates in this preview.'
+              'Windows x64: download Setup or MSI and verify it against `SHA256SUMS.txt`. The Linux release workflow adds the x64 `.deb`, `.AppImage`, and `SHA256SUMS-linux.txt` to this same Release. RunLit does not include automatic updates in this preview.'
             )
           } else {
             $notice = @(
               '> [!NOTE]'
               '> Free code signing provided by SignPath.io, certificate by SignPath Foundation.'
               ''
-              'Both Windows installers have been Authenticode-verified in the release workflow. Download either installer below, then verify it against `SHA256SUMS.txt`.'
+              'Both Windows installers have been Authenticode-verified in the release workflow. Verify them against `SHA256SUMS.txt`; the Linux release workflow adds the x64 `.deb`, `.AppImage`, and `SHA256SUMS-linux.txt` to this same Release.'
             )
           }
           $notice | Set-Content -LiteralPath RELEASE_NOTICE.md -Encoding utf8
