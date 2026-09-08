@@ -15,12 +15,15 @@ use tauri::{
 const BALL_SIZE: f64 = 52.0;
 const PANEL_WIDTH: f64 = 520.0;
 const PANEL_MIN_HEIGHT: f64 = 420.0;
-const PANEL_MAX_HEIGHT: f64 = 780.0;
 const EDGE_MARGIN: i32 = 12;
 const MAX_ORB_IMAGE_BYTES: u64 = 1024 * 1024;
 
 fn should_snap_to_edge(compact: bool, near_edge: bool) -> bool {
     !compact && near_edge
+}
+
+fn clamp_panel_height(requested: f64, available: f64) -> f64 {
+    requested.clamp(PANEL_MIN_HEIGHT, available.max(PANEL_MIN_HEIGHT))
 }
 
 #[tauri::command]
@@ -255,12 +258,12 @@ fn set_window_geometry(
     let monitor_bottom = monitor_position.y + monitor_size.height as i32;
 
     let width = if compact { BALL_SIZE } else { PANEL_WIDTH };
+    let available_panel_height = ((monitor_size.height as f64 - f64::from(EDGE_MARGIN * 2)) / scale)
+        .max(PANEL_MIN_HEIGHT);
     let height = if compact {
         BALL_SIZE
     } else {
-        requested_height
-            .unwrap_or(PANEL_MIN_HEIGHT)
-            .clamp(PANEL_MIN_HEIGHT, PANEL_MAX_HEIGHT)
+        clamp_panel_height(requested_height.unwrap_or(PANEL_MIN_HEIGHT), available_panel_height)
     };
     let new_width = (width * scale).round() as u32;
     let new_height = (height * scale).round() as u32;
@@ -344,7 +347,7 @@ fn drag_and_snap(window: WebviewWindow, compact: bool) -> Result<bool, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::should_snap_to_edge;
+    use super::{clamp_panel_height, should_snap_to_edge};
 
     #[test]
     fn compact_orb_preserves_its_drop_position() {
@@ -356,6 +359,13 @@ mod tests {
     fn only_expanded_window_snaps_when_near_an_edge() {
         assert!(should_snap_to_edge(false, true));
         assert!(!should_snap_to_edge(false, false));
+    }
+
+    #[test]
+    fn panel_height_is_limited_by_usable_screen_space() {
+        assert_eq!(clamp_panel_height(300.0, 900.0), 420.0);
+        assert_eq!(clamp_panel_height(720.0, 900.0), 720.0);
+        assert_eq!(clamp_panel_height(1200.0, 900.0), 900.0);
     }
 }
 

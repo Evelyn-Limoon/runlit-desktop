@@ -320,6 +320,68 @@ test("shows the newest three versions first and reveals older history on demand"
   expect(screen.getByText("版本内容 0")).toBeInTheDocument();
 });
 
+test("renames a meaningful version from the pencil action", async () => {
+  const original = {
+    generatedAt: "2026-09-08T08:00:00.000Z",
+    tasks: [{
+      id: "task-rename", provider: "codex", title: "版本重命名", projectPath: "C:\\work", status: "completed",
+      versions: [{ id: "version-rename", taskId: "task-rename", ordinal: 3, summary: "已确认成果物：RunLit", source: "result", createdAt: "2026-09-08T08:00:00.000Z", artifacts: [] }],
+    }],
+  };
+  const renamed = {
+    ...original,
+    generatedAt: "2026-09-08T08:01:00.000Z",
+    tasks: [{ ...original.tasks[0], versions: [{ ...original.tasks[0]!.versions[0], summary: "优化了版本编辑交互" }] }],
+  };
+  vi.mocked(fetch).mockImplementation((input, init) => {
+    if (String(input).endsWith("/versions/version-rename") && init?.method === "PATCH") {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ updated: true, snapshot: renamed }) } as Response);
+    }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve(original) } as Response);
+  });
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "R" }));
+  fireEvent.click(await screen.findByRole("button", { name: "重命名 v3 的版本信息" }));
+  const input = screen.getByRole("textbox", { name: "编辑 v3 的版本信息" });
+  fireEvent.change(input, { target: { value: "优化了版本编辑交互" } });
+  fireEvent.keyDown(input, { key: "Enter" });
+
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith(
+    "http://127.0.0.1:47831/versions/version-rename",
+    expect.objectContaining({ method: "PATCH", body: JSON.stringify({ summary: "优化了版本编辑交互" }) }),
+  ));
+  expect(await screen.findByText("优化了版本编辑交互")).toBeInTheDocument();
+  expect(screen.queryByRole("textbox", { name: "编辑 v3 的版本信息" })).not.toBeInTheDocument();
+});
+
+test("limits Chinese version titles and resizes the detail panel from its bottom handle", async () => {
+  vi.spyOn(window.screen, "availHeight", "get").mockReturnValue(1000);
+  const snapshot = {
+    generatedAt: "2026-09-08T08:00:00.000Z",
+    tasks: [{
+      id: "task-resize", provider: "codex", title: "详情高度", status: "completed",
+      versions: [{ id: "version-resize", taskId: "task-resize", ordinal: 0, summary: "原始版本", source: "result", createdAt: "2026-09-08T08:00:00.000Z", artifacts: [] }],
+    }],
+  };
+  vi.mocked(fetch).mockResolvedValue({ ok: true, json: () => Promise.resolve(snapshot) } as Response);
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "R" }));
+  fireEvent.click(await screen.findByRole("button", { name: "重命名 v0 的版本信息" }));
+  const input = screen.getByRole("textbox", { name: "编辑 v0 的版本信息" });
+  fireEvent.change(input, { target: { value: "版".repeat(41) } });
+  expect(screen.getByText("82/80")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "保存 v0 的版本信息" })).toBeDisabled();
+
+  const handle = screen.getByRole("separator", { name: "调整任务详情高度" });
+  const content = document.querySelector<HTMLElement>(".detail-content")!;
+  Object.defineProperty(content, "scrollHeight", { configurable: true, value: 900 });
+  fireEvent.keyDown(handle, { key: "ArrowDown" });
+  expect(window.localStorage.getItem("runlit.panel-height")).toBe("682");
+  expect(handle).toHaveAttribute("aria-valuenow", "682");
+});
+
 test("offers AI tool setup directly from the empty task state", async () => {
   vi.mocked(fetch).mockImplementation((input) => Promise.resolve({ ok: true, json: () => Promise.resolve(String(input).endsWith("/adapters") ? {} : { generatedAt: new Date().toISOString(), tasks: [] }) } as Response));
   render(<App />);

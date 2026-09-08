@@ -1,12 +1,7 @@
 # RunLit User Guide
 
-> Status: unsigned public GitHub preview
+> Status: draft for a future public GitHub release
 > Current product scope: Windows x64, Codex and WorkBuddy AI, local-first
-
-RunLit has selected the SignPath Foundation open-source program for future
-Windows signatures, but has not yet been approved. Free code signing provided
-by SignPath.io, certificate by SignPath Foundation. See the
-[code signing policy](code-signing-policy.md).
 
 [简体中文](user-guide.zh-CN.md) | [Adapter development guide](adapter-development.md)
 
@@ -45,11 +40,11 @@ RunLit detects tasks from local data and does not need internet access to refres
 
 ### Development preview warning
 
-The `v0.1.0-preview.1` packages are not code-signed. Windows may show an Unknown Publisher or SmartScreen warning when they are downloaded through a browser. The GitHub Release states the signing status and publishes SHA-256 checksums for the installers.
+The 0.1.0 development packages are not currently code-signed. Windows may show an Unknown Publisher or SmartScreen warning when they are downloaded through a browser. A public GitHub Release must clearly state whether its packages are signed and must publish SHA-256 checksums for the installers.
 
 ## 4. Install from GitHub
 
-Download RunLit only from the repository's [**Releases** page](https://github.com/Evelyn-Limoon/runlit-desktop/releases), not from a third-party download site.
+After the public launch, download RunLit only from the repository's **Releases** page, not from a third-party download site.
 
 1. Open the latest RunLit Release.
 2. Read the release notes, supported scope, and known issues.
@@ -149,6 +144,10 @@ The following normally do not create a task light:
 A RunLit version is not created for every filesystem update. One version is created only when one user interaction materially changes local files, a product, a website, or another task result.
 
 The detail view shows the newest three versions first. Select **Show earlier versions** when you need the full history.
+
+Use the pencil button beside a version summary to replace the generated text with a title that is easier to remember. A title cannot be empty and may use up to about 40 Chinese characters or 80 English characters. The custom title is stored in RunLit's local database and is preserved across later automatic synchronization.
+
+Drag the short handle at the bottom center of the detail window downward to reveal the latest three versions together with the status evidence and project information. RunLit remembers the chosen height; the version area remains scrollable when the screen cannot fit the full panel.
 
 - One artifact: the artifact button opens that file directly.
 - Multiple local artifacts from one interaction: **Open folder** on the version card opens their common directory.

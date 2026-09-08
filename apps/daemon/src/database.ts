@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from "node:path";
-import type { Artifact, RunlitEvent, Snapshot, Task, Version } from "@runlit/protocol";
+import { normalizeVersionTitle, type Artifact, type RunlitEvent, type Snapshot, type Task, type Version } from "@runlit/protocol";
 
 export type RunlitMode = "normal" | "demo";
 
@@ -66,6 +66,14 @@ export class RunlitDatabase {
     const result = this.db.prepare(`
       UPDATE tasks SET hidden_at = ? WHERE id = ? AND hidden_at IS NULL
     `).run(hiddenAt, taskId);
+    return result.changes > 0;
+  }
+
+  renameVersion(versionId: string, summary: string) {
+    const customSummary = normalizeVersionTitle(summary);
+    const result = this.db.prepare(`
+      UPDATE versions SET custom_summary = ? WHERE id = ?
+    `).run(customSummary, versionId);
     return result.changes > 0;
   }
 
@@ -203,6 +211,7 @@ export class RunlitDatabase {
     this.ensureColumn("task_candidates", "resolved_task_id", "TEXT");
     this.ensureColumn("task_candidates", "qualified_at", "TEXT");
     this.ensureColumn("tasks", "hidden_at", "TEXT");
+    this.ensureColumn("versions", "custom_summary", "TEXT");
   }
 
   private ensureColumn(table: string, column: string, definition: string) {
@@ -236,7 +245,8 @@ export class RunlitDatabase {
       } else if (event.type === "version.upsert") {
         const p = event.payload;
         this.db.prepare(`
-          INSERT INTO versions VALUES (?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO versions(id, task_id, parent_version_id, ordinal, summary, source, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET parent_version_id=excluded.parent_version_id,
             ordinal=excluded.ordinal, summary=excluded.summary, source=excluded.source,
             created_at=excluded.created_at
@@ -292,7 +302,7 @@ export class RunlitDatabase {
           taskId: version.task_id as string,
           ...(index > 0 ? { parentVersionId: versionRows[index - 1]?.id as string } : {}),
           ordinal: index,
-          summary: version.summary as string,
+          summary: (version.custom_summary ?? version.summary) as string,
           source: version.source as Version["source"],
           createdAt: version.created_at as string,
           artifacts,

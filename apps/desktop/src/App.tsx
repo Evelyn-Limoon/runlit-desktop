@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
-import type { Artifact, Snapshot, Task, TaskStatus } from "@runlit/protocol";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import { normalizeVersionTitle, VERSION_TITLE_MAX_UNITS, versionTitleUnits, type Artifact, type Snapshot, type Task, type TaskStatus } from "@runlit/protocol";
 import { invoke } from "@tauri-apps/api/core";
-import { ChevronLeft, ExternalLink, Eye, EyeOff, FileText, FolderOpen, ImagePlus, Link2, Pencil, Plus, PlugZap, Radio, RotateCcw, Settings, Trash2, WifiOff, X } from "lucide-react";
+import { Check, ChevronLeft, ExternalLink, Eye, EyeOff, FileText, FolderOpen, ImagePlus, Link2, Pencil, Plus, PlugZap, Radio, RotateCcw, Settings, Trash2, WifiOff, X } from "lucide-react";
 import { getProviderMeta, ProviderMark } from "./provider";
 import runlitMarkUrl from "../src-tauri/icons/runlit.svg";
 
@@ -11,8 +11,32 @@ const SNAPSHOT_POLL_MS = 5_000;
 const RECONNECT_DELAY_MS = 1_800;
 const ADAPTER_STALE_MS = 20_000;
 const ORB_IMAGE_KEY = "runlit.orb-image";
+const PANEL_HEIGHT_KEY = "runlit.panel-height";
+const PANEL_MIN_HEIGHT = 420;
+const PANEL_DEFAULT_HEIGHT = 650;
 const MAX_ORB_IMAGE_BYTES = 1024 * 1024;
 const ALLOWED_ORB_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+function readPanelHeight() {
+  try {
+    const saved = window.localStorage.getItem(PANEL_HEIGHT_KEY);
+    const stored = saved === null ? Number.NaN : Number(saved);
+    const screenLimit = Math.max(PANEL_MIN_HEIGHT, window.screen.availHeight - 24);
+    return Number.isFinite(stored) ? Math.min(screenLimit, Math.max(PANEL_MIN_HEIGHT, stored)) : Math.min(screenLimit, PANEL_DEFAULT_HEIGHT);
+  } catch {
+    return PANEL_DEFAULT_HEIGHT;
+  }
+}
+
+function detailContentMaxHeight(panel: HTMLElement | null) {
+  const screenLimit = Math.max(PANEL_MIN_HEIGHT, window.screen.availHeight - 24);
+  if (!panel) return screenLimit;
+  const topbar = panel.querySelector<HTMLElement>(".topbar")?.offsetHeight ?? 58;
+  const content = panel.querySelector<HTMLElement>(".detail-content");
+  const resizeHandle = panel.querySelector<HTMLElement>(".panel-resize-handle")?.offsetHeight ?? 14;
+  const fullContent = topbar + (content?.scrollHeight ?? PANEL_MIN_HEIGHT) + resizeHandle;
+  return Math.max(PANEL_MIN_HEIGHT, Math.min(screenLimit, fullContent));
+}
 
 type AdapterStatus = {
   id: string;
@@ -125,12 +149,17 @@ export function App() {
   const [orbMenu, setOrbMenu] = useState<{ x: number; y: number }>();
   const [taskMenu, setTaskMenu] = useState<{ x: number; y: number; task: Task }>();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [panelHeight, setPanelHeight] = useState(readPanelHeight);
+  const panelHeightRef = useRef(panelHeight);
   const panelRef = useRef<HTMLElement>(null);
   const orbInputRef = useRef<HTMLInputElement>(null);
   const nativeOrbMenuRef = useRef<{ close: () => Promise<void> } | undefined>(undefined);
   const dragStart = useRef<{ x: number; y: number } | undefined>(undefined);
   const dragInProgress = useRef(false);
   const suppressOrbClickUntil = useRef(0);
+  const panelResizeStart = useRef<{ screenY: number; height: number; maxHeight: number; pointerId: number } | undefined>(undefined);
+  const pendingPanelHeight = useRef<number | undefined>(undefined);
+  const panelResizeFrame = useRef<number | undefined>(undefined);
 
   const acceptSnapshot = useCallback((next: Snapshot) => {
     setSnapshot(next);
@@ -261,8 +290,8 @@ export function App() {
     setTaskMenu(undefined);
     setSettingsOpen(true);
     setCollapsed(false);
-    if (isTauri()) void invoke("set_window_mode", { compact: false, height: 650 });
-  }, []);
+    if (isTauri()) void invoke("set_window_mode", { compact: false, height: Math.min(panelHeight, 650) });
+  }, [panelHeight]);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -276,18 +305,71 @@ export function App() {
 
   const setCompact = (compact: boolean, height?: number) => {
     setCollapsed(compact);
-    if (isTauri()) void invoke("set_window_mode", { compact, height: height ?? null });
+    if (isTauri()) void invoke("set_window_mode", { compact, height: compact ? null : height ?? panelHeight });
   };
 
   useLayoutEffect(() => {
-    if (collapsed || !isTauri()) return;
+    if (collapsed || settingsOpen || !isTauri()) return;
     const frame = requestAnimationFrame(() => {
-      const contentHeight = panelRef.current?.scrollHeight ?? 420;
-      const desiredHeight = Math.min(window.screen.availHeight - 32, Math.max(420, contentHeight + 24));
+      const desiredHeight = Math.min(panelHeight, detailContentMaxHeight(panelRef.current));
       void invoke("resize_expanded_window", { height: desiredHeight });
     });
     return () => cancelAnimationFrame(frame);
-  }, [collapsed, selectedId, snapshot.generatedAt, privateMode]);
+  }, [collapsed, panelHeight, privateMode, selectedId, settingsOpen]);
+
+  useEffect(() => () => {
+    if (panelResizeFrame.current !== undefined) cancelAnimationFrame(panelResizeFrame.current);
+  }, []);
+
+  const requestPanelHeight = (height: number) => {
+    panelHeightRef.current = height;
+    setPanelHeight(height);
+    pendingPanelHeight.current = height;
+    if (panelResizeFrame.current !== undefined) return;
+    panelResizeFrame.current = requestAnimationFrame(() => {
+      const next = pendingPanelHeight.current;
+      pendingPanelHeight.current = undefined;
+      panelResizeFrame.current = undefined;
+      if (next !== undefined && isTauri()) void invoke("resize_expanded_window", { height: next });
+    });
+  };
+
+  const onPanelResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    panelResizeStart.current = {
+      screenY: event.screenY,
+      height: window.innerHeight,
+      maxHeight: detailContentMaxHeight(panelRef.current),
+      pointerId: event.pointerId,
+    };
+  };
+
+  const onPanelResizePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const start = panelResizeStart.current;
+    if (!start || start.pointerId !== event.pointerId) return;
+    const next = Math.max(PANEL_MIN_HEIGHT, Math.min(start.maxHeight, start.height + event.screenY - start.screenY));
+    requestPanelHeight(Math.round(next));
+  };
+
+  const finishPanelResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const start = panelResizeStart.current;
+    if (!start || start.pointerId !== event.pointerId) return;
+    panelResizeStart.current = undefined;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    try { window.localStorage.setItem(PANEL_HEIGHT_KEY, String(panelHeightRef.current)); } catch { /* localStorage may be unavailable */ }
+  };
+
+  const onPanelResizeKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    event.preventDefault();
+    const maximum = detailContentMaxHeight(panelRef.current);
+    const next = Math.max(PANEL_MIN_HEIGHT, Math.min(maximum, panelHeight + (event.key === "ArrowDown" ? 32 : -32)));
+    requestPanelHeight(next);
+    try { window.localStorage.setItem(PANEL_HEIGHT_KEY, String(next)); } catch { /* localStorage may be unavailable */ }
+  };
 
   const onDragPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     if (!isTauri() || event.button !== 0) return;
@@ -455,7 +537,7 @@ export function App() {
       <input ref={orbInputRef} className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" aria-label="上传浮球图片" onChange={onOrbImageSelected} />
       {!collapsed && (settingsOpen
         ? <AdapterSettingsPanel panelRef={panelRef} onClose={() => setSettingsOpen(false)} />
-        : <DetailPanel panelRef={panelRef} task={selected} privateMode={privateMode} health={health} orbMessage={orbMessage} onDismissMessage={() => setOrbMessage(undefined)} onTogglePrivate={() => setPrivateMode((value) => !value)} onOpenSettings={openAdapterSettings} />)}
+        : <DetailPanel panelRef={panelRef} task={selected} privateMode={privateMode} health={health} orbMessage={orbMessage} onDismissMessage={() => setOrbMessage(undefined)} onTogglePrivate={() => setPrivateMode((value) => !value)} onOpenSettings={openAdapterSettings} onSnapshot={acceptSnapshot} panelHeight={panelHeight} onResizePointerDown={onPanelResizePointerDown} onResizePointerMove={onPanelResizePointerMove} onResizePointerUp={finishPanelResize} onResizeKeyDown={onPanelResizeKeyDown} />)}
       <aside className="task-dock" aria-label="AI 任务灯条" data-runlit-drag>
         <button className="brand-orb" data-runlit-drag onClick={onOrbClick} onContextMenu={showOrbContextMenu} aria-label="R" aria-expanded={!collapsed} aria-haspopup="menu" title={collapsed ? "左键打开；右键设置浮球" : "左键收起；右键设置浮球"}>
           <span className={`brand-flame ${orbImage ? "has-image" : ""}`}>{orbImage ? <img src={orbImage} alt="自定义浮球" draggable={false} /> : <img className="runlit-mark" src={runlitMarkUrl} alt="" draggable={false} />}</span>
@@ -699,7 +781,101 @@ function TaskLight({ task, active, privateMode, onSelect, onContextMenu }: { tas
   );
 }
 
-function DetailPanel({ panelRef, task, privateMode, health, orbMessage, onDismissMessage, onTogglePrivate, onOpenSettings }: { panelRef: RefObject<HTMLElement | null>; task?: Task; privateMode: boolean; health: AdapterHealth; orbMessage?: string; onDismissMessage: () => void; onTogglePrivate: () => void; onOpenSettings: () => void }) {
+function VersionSummaryEditor({ version, privateMode, onSnapshot }: { version: Task["versions"][number]; privateMode: boolean; onSnapshot: (snapshot: Snapshot) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(version.summary);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string>();
+  const units = versionTitleUnits(draft.trim());
+  const valid = Boolean(draft.trim()) && units <= VERSION_TITLE_MAX_UNITS;
+
+  useEffect(() => {
+    if (!editing) setDraft(version.summary);
+  }, [editing, version.summary]);
+
+  const cancel = () => {
+    setEditing(false);
+    setDraft(version.summary);
+    setError(undefined);
+  };
+
+  const save = async () => {
+    if (saving) return;
+    try {
+      const summary = normalizeVersionTitle(draft);
+      setSaving(true);
+      const response = await fetch(`${API}/versions/${encodeURIComponent(version.id)}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ summary }),
+      });
+      const result = await response.json() as { updated?: boolean; snapshot?: Snapshot; error?: string };
+      if (("ok" in response && !response.ok) || !result.updated || !result.snapshot) {
+        throw new Error(result.error ?? "版本标题更新失败");
+      }
+      onSnapshot(result.snapshot);
+      setEditing(false);
+      setError(undefined);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "版本标题更新失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (privateMode) return <div className="version-summary-row"><p>版本内容已隐藏</p></div>;
+
+  if (!editing) {
+    return (
+      <div className="version-summary-row">
+        <p>{version.summary}</p>
+        <button className="version-rename-button" type="button" aria-label={`重命名 v${version.ordinal} 的版本信息`} title="重命名版本信息" onClick={() => { setDraft(version.summary); setEditing(true); setError(undefined); }}><Pencil size={13} strokeWidth={1.8} /></button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="version-summary-editor">
+      <div className="version-title-input-row">
+        <input
+          autoFocus
+          aria-label={`编辑 v${version.ordinal} 的版本信息`}
+          aria-invalid={!valid}
+          maxLength={VERSION_TITLE_MAX_UNITS}
+          value={draft}
+          onChange={(event) => { setDraft(event.currentTarget.value); setError(undefined); }}
+          onFocus={(event) => event.currentTarget.select()}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") cancel();
+            if (event.key === "Enter" && !event.nativeEvent.isComposing && valid) void save();
+          }}
+        />
+        <button className="version-edit-action save" type="button" aria-label={`保存 v${version.ordinal} 的版本信息`} title="保存（Enter）" disabled={!valid || saving} onClick={() => void save()}><Check size={13} /></button>
+        <button className="version-edit-action" type="button" aria-label={`取消编辑 v${version.ordinal}`} title="取消（Esc）" disabled={saving} onClick={cancel}><X size={13} /></button>
+      </div>
+      <div className={`version-title-help ${units > VERSION_TITLE_MAX_UNITS ? "over-limit" : ""} ${error ? "has-error" : ""}`}><span>{error ?? "中文约 40 字 / 英文 80 字"}</span><span>{units}/{VERSION_TITLE_MAX_UNITS}</span></div>
+    </div>
+  );
+}
+
+type DetailPanelProps = {
+  panelRef: RefObject<HTMLElement | null>;
+  task?: Task;
+  privateMode: boolean;
+  health: AdapterHealth;
+  orbMessage?: string;
+  onDismissMessage: () => void;
+  onTogglePrivate: () => void;
+  onOpenSettings: () => void;
+  onSnapshot: (snapshot: Snapshot) => void;
+  panelHeight: number;
+  onResizePointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onResizePointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onResizePointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onResizeKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
+};
+
+function DetailPanel({ panelRef, task, privateMode, health, orbMessage, onDismissMessage, onTogglePrivate, onOpenSettings, onSnapshot, panelHeight, onResizePointerDown, onResizePointerMove, onResizePointerUp, onResizeKeyDown }: DetailPanelProps) {
   const [showAllVersions, setShowAllVersions] = useState(false);
   useEffect(() => setShowAllVersions(false), [task?.id]);
   const versions = useMemo(() => [...(task?.versions ?? [])].reverse(), [task?.versions]);
@@ -741,7 +917,7 @@ function DetailPanel({ panelRef, task, privateMode, health, orbMessage, onDismis
                 <div className="node-rail"><span className={version.id === task.versions.at(-1)?.id ? "current" : ""}>{version.ordinal}</span></div>
                 <div className="node-card">
                   <div className="node-topline"><strong>v{version.ordinal}</strong><span>{formatTime(version.createdAt)}</span></div>
-                  <p>{privateMode ? "版本内容已隐藏" : version.summary}</p>
+                  <VersionSummaryEditor version={version} privateMode={privateMode} onSnapshot={onSnapshot} />
                   <div className="node-actions"><span className="source-chip">{sourceLabel(version.source)}</span>{versionTarget && <button className="version-open-button" title={versionTargetLabel} onClick={() => void openTarget(versionTarget, versionTargetLabel)}><FolderOpen size={11} />{versionOpenText}</button>}</div>
                   {version.artifacts.length > 0 && <div className="artifacts">{version.artifacts.map((artifact) => <ArtifactButton artifact={artifact} key={artifact.id} />)}</div>}
                 </div>
@@ -756,6 +932,22 @@ function DetailPanel({ panelRef, task, privateMode, health, orbMessage, onDismis
           </footer>
         </div>
       ) : <div className="empty-state large"><strong>{health.tone === "offline" ? "RunLit 后台尚未连接" : "还没有符合条件的成果物任务"}</strong><span>{health.tone === "offline" ? "后台恢复后会自动同步，无需手动刷新。" : "先连接正在使用的 AI 工具，产生本地成果后任务会自动亮起。"}</span><button onClick={onOpenSettings}><Settings size={13} />连接 AI 工具</button></div>}
+      <div
+        className="panel-resize-handle"
+        role="separator"
+        aria-label="调整任务详情高度"
+        aria-orientation="horizontal"
+        aria-valuemin={PANEL_MIN_HEIGHT}
+        aria-valuemax={Math.max(PANEL_MIN_HEIGHT, window.screen.availHeight - 24)}
+        aria-valuenow={Math.round(panelHeight)}
+        tabIndex={0}
+        title="向下拖动展开；向上拖动收起"
+        onPointerDown={onResizePointerDown}
+        onPointerMove={onResizePointerMove}
+        onPointerUp={onResizePointerUp}
+        onPointerCancel={onResizePointerUp}
+        onKeyDown={onResizeKeyDown}
+      ><span /></div>
     </section>
   );
 }

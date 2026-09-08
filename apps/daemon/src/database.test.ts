@@ -16,6 +16,27 @@ test("persists normalized task, version, and artifact events", () => {
   database.close();
 });
 
+test("keeps a user-renamed version title across adapter updates and daemon restarts", () => {
+  const directory = mkdtempSync(join(tmpdir(), "runlit-version-title-"));
+  const databasePath = join(directory, "runlit-v2.db");
+  const time = "2026-09-08T08:00:00.000Z";
+  let database = new RunlitDatabase(databasePath);
+  try {
+    database.apply({ type: "task.upsert", occurredAt: time, payload: { id: "task", provider: "codex", title: "Build", status: "completed" } });
+    database.apply({ type: "version.upsert", occurredAt: time, payload: { id: "v0", taskId: "task", ordinal: 0, summary: "Adapter summary", source: "result", createdAt: time } });
+    assert.equal(database.renameVersion("v0", "我调整了安装流程"), true);
+    database.close();
+
+    database = new RunlitDatabase(databasePath);
+    database.apply({ type: "version.upsert", occurredAt: time, payload: { id: "v0", taskId: "task", ordinal: 0, summary: "Adapter refreshed summary", source: "result", createdAt: time } });
+    assert.equal(database.snapshot().tasks[0]?.versions[0]?.summary, "我调整了安装流程");
+    assert.equal(database.renameVersion("missing", "不存在"), false);
+  } finally {
+    database.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("normal mode starts empty and demo mode is explicitly seeded", () => {
   const normal = new RunlitDatabase(":memory:");
   assert.equal(normal.snapshot().tasks.length, 0);

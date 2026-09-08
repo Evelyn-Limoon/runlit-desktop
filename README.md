@@ -6,7 +6,7 @@
 
 RunLit is a local-first Windows desktop observer and result navigator for AI work. It turns verified AI work into a compact floating task dock, shows the task state and material versions, and links each version back to the actual file, folder, project, or trusted web result.
 
-> Current release: **v0.1.0-preview.1 — unsigned Windows x64 preview**
+> Current release: **v0.1.0-preview.2 — unsigned Windows x64 preview**
 >
 > RunLit observes existing AI tools. It does not launch, control, or impersonate them.
 
@@ -20,6 +20,7 @@ SignPath Foundation. See the [code signing policy](docs/code-signing-policy.md).
 - **Watch multiple AI tools in one place.** Codex and WorkBuddy AI are built in; other tools that create local files can be connected through an output folder.
 - **See meaningful task states.** RunLit displays running, completed, interrupted, or unknown only when the adapter has supporting evidence.
 - **Keep useful version history.** One version represents one user interaction that materially changed a result—not every temporary filesystem write.
+- **Name versions in your own words.** Edit any meaningful version title and keep that manual label across later automatic synchronization.
 - **Open the real result.** Open a single artifact directly, open the common folder for multiple artifacts, or follow a trusted result URL.
 - **Stay out of the way.** Drag the floating orb, click it to expand the task window, or use the Windows notification-area menu.
 - **Control visibility.** Hide a task light without deleting its source files or history. New activity from the same session can restore it.
@@ -38,11 +39,11 @@ The provider status in **AI Tool Connections** is the source of truth. A logo al
 
 ## Download and install
 
-Download only from the official [RunLit Releases page](https://github.com/Evelyn-Limoon/runlit-desktop/releases/tag/v0.1.0-preview.1).
+Download only from the official [RunLit Releases page](https://github.com/Evelyn-Limoon/runlit-desktop/releases/tag/v0.1.0-preview.2).
 
-- [Setup executable — recommended for most users](https://github.com/Evelyn-Limoon/runlit-desktop/releases/download/v0.1.0-preview.1/Runlit_0.1.0_x64-setup.exe)
-- [MSI installer](https://github.com/Evelyn-Limoon/runlit-desktop/releases/download/v0.1.0-preview.1/Runlit_0.1.0_x64_en-US.msi)
-- [SHA-256 checksums](https://github.com/Evelyn-Limoon/runlit-desktop/releases/download/v0.1.0-preview.1/SHA256SUMS.txt)
+- [Setup executable — recommended for most users](https://github.com/Evelyn-Limoon/runlit-desktop/releases/download/v0.1.0-preview.2/Runlit_0.1.0_x64-setup.exe)
+- [MSI installer](https://github.com/Evelyn-Limoon/runlit-desktop/releases/download/v0.1.0-preview.2/Runlit_0.1.0_x64_en-US.msi)
+- [SHA-256 checksums](https://github.com/Evelyn-Limoon/runlit-desktop/releases/download/v0.1.0-preview.2/SHA256SUMS.txt)
 
 The preview is not code-signed, so Windows may show **Unknown publisher** or a Microsoft Defender SmartScreen warning. Verify the download before installing:
 
@@ -71,6 +72,8 @@ Chat-only conversations, merely opening an AI tool, and unverified file or URL m
 - **Drag the expanded window to a screen edge:** collapse it into the orb.
 - **Right-click the orb or notification-area icon:** open connections, refresh, or exit RunLit completely.
 - **Right-click a task light:** hide that task from the dock. Its RunLit history and source artifacts remain intact.
+- **Pencil beside a version title:** rename that version; use up to about 40 Chinese or 80 English characters.
+- **Bottom-center resize handle:** drag downward to reveal the newest three versions together with task metadata.
 - **Eye button:** conceal task names and paths while sharing your screen.
 
 ## Local data and privacy

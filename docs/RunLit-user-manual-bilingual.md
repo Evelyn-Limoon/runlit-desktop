@@ -2,7 +2,7 @@
 
 [中文](#中文指南) | [English](#english-guide) | [GitHub Releases](https://github.com/Evelyn-Limoon/runlit-desktop/releases)
 
-> 适用版本 / Applies to: `v0.1.0-preview.1`
+> 适用版本 / Applies to: `v0.1.0-preview.2`
 >
 > 平台 / Platform: Windows x64
 >
@@ -28,6 +28,8 @@ RunLit 是一款常驻 Windows 桌面的 AI 任务观察与成果导航工具。
 - 在浮动任务灯条中集中查看 Codex、WorkBuddy AI 和手动接入工具的任务；
 - 自动刷新新任务与状态，当前目标延迟不超过 20 秒；
 - 每次产生实质修改的用户交互记录一个版本；
+- 使用版本标题旁的铅笔按钮人工重命名版本，最多约 40 个中文字符或 80 个英文字符；
+- 拖动详情窗底部中央短横线，展开查看最新 3 个版本和任务信息；
 - 直接打开单个成果物，或打开多个成果物所在的共同文件夹；
 - 通过浮球和 Windows 通知区域菜单进入接入设置、刷新和退出；
 - 可恢复地隐藏任务，不删除原始成果和版本历史；
@@ -35,7 +37,7 @@ RunLit 是一款常驻 Windows 桌面的 AI 任务观察与成果导航工具。
 
 ### 3. 安装
 
-1. 打开 [RunLit v0.1.0-preview.1 Release](https://github.com/Evelyn-Limoon/runlit-desktop/releases/tag/v0.1.0-preview.1)。
+1. 打开 [RunLit v0.1.0-preview.2 Release](https://github.com/Evelyn-Limoon/runlit-desktop/releases/tag/v0.1.0-preview.2)。
 2. 普通用户下载 `Runlit_0.1.0_x64-setup.exe`；需要 MSI 部署时下载 `.msi`。
 3. 下载 `SHA256SUMS.txt`，用以下命令校验安装包：
 
@@ -127,6 +129,8 @@ It is designed for people who use more than one AI tool and want a quick answer 
 - View Codex, WorkBuddy AI, and manually connected file-producing tools in one floating task dock.
 - Receive automatic task and status refreshes, with a current acceptance target of no more than 20 seconds.
 - Record one version for each user interaction that materially changed a result.
+- Rename a version with the pencil beside its title, using up to about 40 Chinese or 80 English characters.
+- Drag the bottom-center handle to reveal the latest three versions and task metadata.
 - Open one artifact directly or open the common folder for multiple artifacts.
 - Access connections, refresh, and exit from both the orb and Windows notification-area menus.
 - Hide tasks recoverably without deleting source artifacts or RunLit history.
@@ -134,7 +138,7 @@ It is designed for people who use more than one AI tool and want a quick answer 
 
 ### 3. Installation
 
-1. Open the [RunLit v0.1.0-preview.1 Release](https://github.com/Evelyn-Limoon/runlit-desktop/releases/tag/v0.1.0-preview.1).
+1. Open the [RunLit v0.1.0-preview.2 Release](https://github.com/Evelyn-Limoon/runlit-desktop/releases/tag/v0.1.0-preview.2).
 2. Download `Runlit_0.1.0_x64-setup.exe` for normal installation, or the `.msi` for MSI deployment.
 3. Download `SHA256SUMS.txt` and verify the installer:
 

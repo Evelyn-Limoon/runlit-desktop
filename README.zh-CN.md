@@ -6,7 +6,7 @@
 
 RunLit 是一款本地优先的 Windows 桌面 AI 任务观察与成果导航工具。它把有真实证据的 AI 工作整理成轻量任务灯，展示任务状态与实质版本，并把每个版本连接到实际文件、文件夹、项目或可信网页成果。
 
-> 当前版本：**v0.1.0-preview.1 — Windows x64 未签名预览版**
+> 当前版本：**v0.1.0-preview.2 — Windows x64 未签名预览版**
 >
 > RunLit 只观察已经运行的 AI 工具，不负责发起、控制或冒充这些工具。
 
@@ -20,6 +20,7 @@ SignPath.io 提供，证书由 SignPath Foundation 提供。详情见
 - **集中查看多个 AI 工具。** 已内置 Codex 和 WorkBuddy AI；其他会生成本地文件的工具可以通过成果目录接入。
 - **显示有证据的任务状态。** 只有 Adapter 能够证明时，才显示进行中、已完成、已中断或状态未知。
 - **记录有意义的版本。** 一次用户交互确实修改了成果时才产生一个版本，不会把每次临时文件写入都算成版本。
+- **用自己的语言命名版本。** 可以修改任一有意义版本的标题，后续自动同步不会覆盖人工标题。
 - **直接打开真实成果。** 单个成果直接打开文件；多个成果打开共同文件夹；可信网页成果直接打开链接。
 - **低干扰常驻桌面。** 浮球可拖动、点击展开任务窗口，也可以从 Windows 通知区域操作。
 - **可恢复地隐藏任务。** 从灯条删除只会隐藏任务，不会删除成果或历史；同一会话出现新活动时可以自动恢复。
@@ -38,11 +39,11 @@ SignPath.io 提供，证书由 SignPath Foundation 提供。详情见
 
 ## 下载与安装
 
-请只从官方 [RunLit Releases 页面](https://github.com/Evelyn-Limoon/runlit-desktop/releases/tag/v0.1.0-preview.1)下载。
+请只从官方 [RunLit Releases 页面](https://github.com/Evelyn-Limoon/runlit-desktop/releases/tag/v0.1.0-preview.2)下载。
 
-- [Setup 安装程序——推荐普通用户使用](https://github.com/Evelyn-Limoon/runlit-desktop/releases/download/v0.1.0-preview.1/Runlit_0.1.0_x64-setup.exe)
-- [MSI 安装包](https://github.com/Evelyn-Limoon/runlit-desktop/releases/download/v0.1.0-preview.1/Runlit_0.1.0_x64_en-US.msi)
-- [SHA-256 校验值](https://github.com/Evelyn-Limoon/runlit-desktop/releases/download/v0.1.0-preview.1/SHA256SUMS.txt)
+- [Setup 安装程序——推荐普通用户使用](https://github.com/Evelyn-Limoon/runlit-desktop/releases/download/v0.1.0-preview.2/Runlit_0.1.0_x64-setup.exe)
+- [MSI 安装包](https://github.com/Evelyn-Limoon/runlit-desktop/releases/download/v0.1.0-preview.2/Runlit_0.1.0_x64_en-US.msi)
+- [SHA-256 校验值](https://github.com/Evelyn-Limoon/runlit-desktop/releases/download/v0.1.0-preview.2/SHA256SUMS.txt)
 
 当前预览版尚未代码签名，因此 Windows 可能提示“未知发布者”或显示 Microsoft Defender SmartScreen 警告。安装前请校验文件：
 
@@ -71,6 +72,8 @@ Get-FileHash -Algorithm SHA256 .\Runlit_0.1.0_x64-setup.exe
 - **把展开窗口拖到屏幕边缘：** 自动收成浮球。
 - **右键浮球或通知区域图标：** 打开 AI 工具接入、刷新或完全退出 RunLit。
 - **右键任务灯：** 从灯条隐藏任务；RunLit 历史与原始成果不会被删除。
+- **版本标题旁的铅笔：** 人工重命名版本，最多约 40 个中文字符或 80 个英文字符。
+- **窗口底部中央短横线：** 向下拖动，展开查看最新 3 个版本与任务信息。
 - **眼睛按钮：** 共享屏幕时隐藏任务名称和路径。
 
 ## 本地数据与隐私

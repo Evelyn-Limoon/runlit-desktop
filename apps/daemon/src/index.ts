@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseRunlitEvent } from "@runlit/protocol";
+import { normalizeVersionTitle, parseRunlitEvent } from "@runlit/protocol";
 import { WebSocketServer, WebSocket } from "ws";
 import { RunlitDatabase, type RunlitMode } from "./database.js";
 import { CodexAppServerAdapter } from "./codex-app-server.js";
@@ -60,7 +60,7 @@ function cors(req: IncomingMessage, res: ServerResponse) {
   const origin = req.headers.origin;
   if (origin && allowedRunlitOrigins.has(origin)) res.setHeader("Access-Control-Allow-Origin", origin);
   res.setHeader("Access-Control-Allow-Headers", "authorization,content-type");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
 }
 
 function sendJson(res: ServerResponse, status: number, value: unknown) {
@@ -172,6 +172,25 @@ const server = createServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/artifact-evidence") return sendJson(res, 200, { evidence: database.artifactEvidence() });
   if (req.method === "GET" && req.url === "/adapter-checkpoints") return sendJson(res, 200, { checkpoints: database.adapterCheckpoints() });
   if (req.method === "GET" && req.url === "/snapshot") return sendJson(res, 200, database.snapshot());
+  const versionRenameMatch = req.url?.match(/^\/versions\/([^/?]+)$/);
+  if (req.method === "PATCH" && versionRenameMatch) {
+    try {
+      const versionId = decodeURIComponent(versionRenameMatch[1]!);
+      const body = await readBody(req);
+      if (!body || typeof body !== "object" || Array.isArray(body) || typeof (body as { summary?: unknown }).summary !== "string") {
+        throw new Error("版本标题格式无效");
+      }
+      const summary = normalizeVersionTitle((body as { summary: string }).summary);
+      if (!database.renameVersion(versionId, summary)) {
+        return sendJson(res, 404, { updated: false, error: "未找到该版本" });
+      }
+      const snapshot = database.snapshot();
+      broadcast();
+      return sendJson(res, 200, { updated: true, snapshot });
+    } catch (error) {
+      return sendJson(res, 400, { updated: false, error: error instanceof Error ? error.message : "版本标题更新失败" });
+    }
+  }
   const taskDeleteMatch = req.url?.match(/^\/tasks\/([^/?]+)$/);
   if (req.method === "DELETE" && taskDeleteMatch) {
     try {

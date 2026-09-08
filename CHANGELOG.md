@@ -4,6 +4,23 @@ All notable changes to RunLit are documented here.
 
 ## [Unreleased]
 
+## [0.1.0-preview.2] - 2026-09-08
+
+### Added
+
+- Rename meaningful version summaries from an inline pencil control.
+- Preserve manually assigned version titles across daemon restarts and later adapter synchronization.
+- Resize the task detail window vertically to reveal the latest three versions and task metadata.
+
+### Changed
+
+- Version-title validation now uses a shared Chinese/English-aware limit of approximately 40 Chinese or 80 English characters.
+- The root test workflow rebuilds the shared protocol package before daemon and desktop tests, preventing stale runtime exports.
+
+### Verification
+
+- 51 TypeScript tests, 3 Rust tests, production build, isolated persistence replay, and Windows installer upgrade passed.
+
 ## [0.1.0-preview.1] - 2026-09-08
 
 ### Added

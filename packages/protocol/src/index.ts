@@ -31,6 +31,23 @@ export const observationKinds = [
 ] as const;
 export const observationSources = ["app_server", "hook", "editor_bridge", "local_store", "process", "file_system", "manual"] as const;
 export const observationStrengths = ["weak", "medium", "strong"] as const;
+export const VERSION_TITLE_MAX_UNITS = 80;
+
+// ASCII characters use one unit while Chinese and other wide Unicode
+// characters use two. This keeps mixed Chinese/English titles visually close
+// to one line without making either language disproportionately restrictive.
+export function versionTitleUnits(value: string) {
+  return Array.from(value).reduce((total, character) => total + (character.codePointAt(0)! > 0x7f ? 2 : 1), 0);
+}
+
+export function normalizeVersionTitle(value: string) {
+  const title = value.trim();
+  if (!title) throw new Error("版本标题不能为空");
+  if (versionTitleUnits(title) > VERSION_TITLE_MAX_UNITS) {
+    throw new Error("版本标题最多 40 个中文字符或 80 个英文字符");
+  }
+  return title;
+}
 
 // Provider IDs are intentionally extensible. Built-in providers remain listed
 // above for discovery and presentation, while third-party adapters can use a

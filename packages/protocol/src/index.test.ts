@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseRunlitEvent } from "./index.js";
+import { normalizeVersionTitle, parseRunlitEvent, VERSION_TITLE_MAX_UNITS, versionTitleUnits } from "./index.js";
 
 test("accepts an evidence-backed task event", () => {
   const event = parseRunlitEvent({
@@ -85,4 +85,13 @@ test("accepts an adapter checkpoint for idempotent resume", () => {
   assert.equal(event.type, "adapter.checkpoint");
   if (event.type !== "adapter.checkpoint") throw new Error("Expected checkpoint event");
   assert.equal(event.payload.cursor, "event-42");
+});
+
+test("limits mixed-language version titles by visual width", () => {
+  assert.equal(VERSION_TITLE_MAX_UNITS, 80);
+  assert.equal(versionTitleUnits("A".repeat(80)), 80);
+  assert.equal(versionTitleUnits("版本".repeat(20)), 80);
+  assert.equal(normalizeVersionTitle("  调整 RunLit 版本标题  "), "调整 RunLit 版本标题");
+  assert.throws(() => normalizeVersionTitle("版".repeat(41)), /最多 40 个中文字符/);
+  assert.throws(() => normalizeVersionTitle("   "), /不能为空/);
 });
