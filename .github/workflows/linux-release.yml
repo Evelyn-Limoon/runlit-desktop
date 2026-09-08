@@ -70,6 +70,37 @@ jobs:
           dpkg-deb --info "$deb" >/dev/null
           test -x "$appimage"
           cp "$deb" "$appimage" release-linux/
+      - name: Install Debian package and verify installed daemon
+        env:
+          WEBKIT_DISABLE_COMPOSITING_MODE: "1"
+          NO_AT_BRIDGE: "1"
+          RUNLIT_CODEX_ADAPTER: "0"
+        run: |
+          set -euo pipefail
+          deb=$(realpath "$(find release-linux -maxdepth 1 -name '*.deb' -print -quit)")
+          sudo apt-get install -y "$deb"
+          package_name=$(dpkg-deb -f "$deb" Package)
+          installed_binary=$(dpkg -L "$package_name" | grep '^/usr/bin/' | head -n 1)
+          test -x "$installed_binary"
+          export RUNLIT_INSTALLED_BINARY="$installed_binary"
+          dbus-run-session -- bash <<'RUNLIT_DEB_SMOKE'
+          set -euo pipefail
+          xvfb-run -a "$RUNLIT_INSTALLED_BINARY" >"$RUNNER_TEMP/runlit-release-deb.log" 2>&1 &
+          desktop_pid=$!
+          cleanup() { kill "$desktop_pid" 2>/dev/null || true; }
+          trap cleanup EXIT
+          for attempt in {1..80}; do
+            if curl --fail --silent http://127.0.0.1:47831/health | grep -q 'runlit-daemon'; then
+              curl --fail --silent -X POST -H 'Origin: http://tauri.localhost' http://127.0.0.1:47831/shutdown >/dev/null
+              kill "$desktop_pid" 2>/dev/null || true
+              wait "$desktop_pid" || true
+              exit 0
+            fi
+            sleep 0.25
+          done
+          cat "$RUNNER_TEMP/runlit-release-deb.log"
+          exit 1
+          RUNLIT_DEB_SMOKE
       - name: Launch AppImage and verify installed daemon
         env:
           WEBKIT_DISABLE_COMPOSITING_MODE: "1"
