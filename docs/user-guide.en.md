@@ -1,13 +1,13 @@
 # RunLit User Guide
 
-> Status: draft for a future public GitHub release
-> Current product scope: Windows x64, Codex and WorkBuddy AI, local-first
+> Status: public preview guide
+> Current product scope: Windows x64 and Linux x64, Codex and WorkBuddy AI, local-first
 
 [简体中文](user-guide.zh-CN.md) | [Adapter development guide](adapter-development.md)
 
 ## 1. What RunLit does
 
-RunLit is a resident Windows desktop observer and result navigator for AI work. It turns AI sessions that produced verified local changes into task lights and shows:
+RunLit is a resident Windows and Linux desktop observer and result navigator for AI work. It turns AI sessions that produced verified local changes into task lights and shows:
 
 - which AI tool originated the task;
 - whether the task is running, completed, interrupted, or unknown;
@@ -29,7 +29,7 @@ Seeing a provider logo does not mean that its data integration is complete. Use 
 
 ## 3. Before installation
 
-The current public target is Windows x64. The installed build includes the RunLit daemon runtime, so end users do not need to install Node.js, npm, or Rust.
+The current public targets are Windows x64 and Linux x64. Installed builds include the RunLit daemon runtime, so end users do not need to install Node.js, npm, or Rust.
 
 Before using RunLit, install and verify at least one supported AI tool:
 
@@ -40,7 +40,7 @@ RunLit detects tasks from local data and does not need internet access to refres
 
 ### Development preview warning
 
-The 0.1.0 development packages are not currently code-signed. Windows may show an Unknown Publisher or SmartScreen warning when they are downloaded through a browser. A public GitHub Release must clearly state whether its packages are signed and must publish SHA-256 checksums for the installers.
+The 0.1.0 Windows development packages are not currently code-signed. Windows may show an Unknown Publisher or SmartScreen warning when they are downloaded through a browser. Linux packages publish SHA-256 checksums but do not yet have a repository signature.
 
 ## 4. Install from GitHub
 
@@ -48,13 +48,14 @@ After the public launch, download RunLit only from the repository's **Releases**
 
 1. Open the latest RunLit Release.
 2. Read the release notes, supported scope, and known issues.
-3. Download one Windows x64 installer:
-   - `Setup.exe` for most users;
-   - `.msi` for environments that require MSI deployment.
+3. Download the package for your system:
+   - Windows x64: `Setup.exe` for most users, or `.msi` for managed deployment;
+   - Debian/Ubuntu x64: `.deb`;
+   - other compatible x64 Linux desktops: portable `.AppImage`.
 4. Compare the file with the SHA-256 checksum on the Release page.
-5. Install RunLit and launch it from the Start menu.
+5. Install RunLit and launch it from the Windows Start menu or Linux application launcher. For AppImage, run `chmod +x Runlit_*.AppImage` once and then launch the file.
 
-After launch, the RunLit icon appears in the Windows taskbar and notification area. A draggable circular orb appears on the desktop.
+After launch, a draggable circular RunLit orb appears on the desktop. Windows also shows the app in the taskbar and notification area. On Linux, notification-area support depends on the desktop environment and installed StatusNotifier host; the orb remains usable without it.
 
 ## 5. Connect an AI tool
 
@@ -82,8 +83,8 @@ The installed interface currently uses Chinese state labels: `已连接`, `正�
 RunLit searches for Codex in this order:
 
 1. the advanced `RUNLIT_CODEX_PATH` override;
-2. Codex on the Windows `PATH`;
-3. the current user's Codex Desktop installation directory.
+2. Codex on the system `PATH`;
+3. on Windows, the current user's Codex Desktop installation directory.
 
 Most installed users do not need to enter a path. If Codex is shown as **Not found**:
 
@@ -98,7 +99,7 @@ RunLit first checks for a `.workbuddy-ai` directory in the current user profile.
 
 1. open **AI Tool Connections…**;
 2. find the WorkBuddy AI card;
-3. enter the WorkBuddy data directory, for example `C:\Users\your-name\.workbuddy-ai`;
+3. enter the WorkBuddy data directory, for example `C:\Users\your-name\.workbuddy-ai` on Windows or `/home/your-name/.workbuddy-ai` on Linux;
 4. choose **Save and connect**;
 5. confirm that the state changes to **Connected**.
 
@@ -187,10 +188,11 @@ RunLit is designed to be local-first. An Adapter should retain only the informat
 
 RunLit should not store chat bodies or read browser cookies, passwords, or private login tokens.
 
-The installed Windows application stores its database, settings, local API authorization token, and logs under:
+The installed application stores its database, settings, local API authorization token, and logs under:
 
 ```text
-%LOCALAPPDATA%\com.runlit.desktop
+Windows: %LOCALAPPDATA%\com.runlit.desktop
+Linux:   ${XDG_DATA_HOME:-$HOME/.local/share}/com.runlit.desktop
 ```
 
 Development mode uses the repository's `.runlit` directory by default. Removing a task light does not delete this data and does not modify the original Codex, WorkBuddy, or project data.
@@ -211,7 +213,7 @@ The uninstaller may preserve the user database and logs. Check and remove this d
 
 - choose **Exit RunLit** from the notification area, then restart it;
 - check whether another application is using local port `47831`;
-- inspect the startup and daemon logs under `%LOCALAPPDATA%\com.runlit.desktop\logs`.
+- inspect the startup and daemon logs under the platform data directory's `logs` folder.
 
 ### Codex is “Not found”
 
@@ -246,12 +248,14 @@ Do not hard-code another user's name, drive letter, or Codex version hash into R
 ### An artifact does not open
 
 - check whether the file was moved or deleted;
-- check access permissions for the current Windows user;
+- check access permissions for the current operating-system user;
 - use **Open folder** on the version card to locate the common folder for multiple results.
 
 ## 11. Known limitations
 
-- The current public target is Windows x64 only.
+- The current public targets are Windows x64 and Linux x64; macOS and ARM64 are not supported yet.
+- Linux notification-area support depends on the desktop environment; the floating orb is always the fallback entry.
+- Linux `.deb` and AppImage packages publish checksums but are not repository-signed.
 - The only built-in Adapters are Codex and WorkBuddy AI.
 - RunLit looks back over the most recent 24 hours of provider sessions by default.
 - Provider data-format changes may require an Adapter update.
@@ -262,11 +266,18 @@ Do not hard-code another user's name, drive letter, or Codex version hash into R
 
 ## 12. Run from source
 
-Developer prerequisites are Node.js 24+, npm, the Rust MSVC toolchain, and WebView2.
+Developer prerequisites are Node.js 24+, npm, Rust, and the platform-specific Tauri prerequisites.
 
 ```powershell
 npm ci
 npm run start:runlit
+```
+
+On Linux, install the Tauri Linux dependencies and run:
+
+```bash
+npm ci
+npm run start:runlit:linux
 ```
 
 Create a desktop shortcut that points to the current checkout:
@@ -282,7 +293,7 @@ This shortcut points to a repository on the current computer and is not the same
 After the public launch, use GitHub Issues for ordinary functional problems and include:
 
 - the RunLit version;
-- the Windows version;
+- the operating-system version and, on Linux, the distribution and desktop environment;
 - the AI tool and its version;
 - the status shown in **AI Tool Connections…**;
 - the time of the problem and reproduction steps;

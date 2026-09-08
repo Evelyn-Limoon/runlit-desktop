@@ -15,10 +15,11 @@ body:
     validations:
       required: true
   - type: input
-    id: windows
+    id: operating-system
     attributes:
-      label: Windows version
-      placeholder: Windows 11 24H2
+      label: Operating system
+      description: Include the distribution and desktop environment on Linux.
+      placeholder: Windows 11 24H2 or Ubuntu 22.04 / GNOME
     validations:
       required: true
   - type: dropdown

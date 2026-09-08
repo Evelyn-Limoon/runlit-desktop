@@ -4,6 +4,8 @@ All notable changes to RunLit are documented here.
 
 ## [Unreleased]
 
+## [0.1.0-preview.3] - 2026-09-08
+
 ### Added
 
 - Linux x64 packaging for Debian/Ubuntu (`.deb`) and portable desktop use (`.AppImage`).

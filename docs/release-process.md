@@ -1,4 +1,4 @@
-# Windows release process
+# Cross-platform release process
 
 This document describes the release workflow for RunLit maintainers.
 
@@ -8,11 +8,14 @@ This document describes the release workflow for RunLit maintainers.
 2. Update `CHANGELOG.md` with user-visible changes and known limitations.
 3. Run `npm ci`, `npm test`, `npm run build`, `cargo test`, `npm audit`, and
    `cargo audit` on a clean checkout.
-4. Confirm the native Windows bundle builds, its bundled daemon health check
+4. Confirm the native Windows bundles build, their bundled daemon health check
    passes, and the installer succeeds on a clean Windows runner.
-5. Review dependencies, third-party notices, and the public-repository diff for
+5. Confirm the Linux `.deb` and `.AppImage` bundles build on Ubuntu 22.04, the
+   packaged files are valid, and the AppImage starts its bundled daemon in a
+   clean headless desktop session.
+6. Review dependencies, third-party notices, and the public-repository diff for
    credentials or local data.
-6. Confirm the requirements in [`code-signing-policy.md`](code-signing-policy.md).
+7. Confirm the requirements in [`code-signing-policy.md`](code-signing-policy.md).
    A stable release requires SignPath Foundation signing. An unsigned build must
    use a hyphenated preview tag and state that it is unsigned.
 
@@ -20,7 +23,10 @@ This document describes the release workflow for RunLit maintainers.
 
 Create and push an annotated tag in the form `vX.Y.Z` for a signed production
 release or `vX.Y.Z-preview.N` for an unsigned preview. The `Windows release`
-workflow checks out the exact tag and builds the MSI and NSIS installers.
+workflow checks out the exact tag and builds the MSI and NSIS installers. The
+`Linux release` workflow builds the Debian package and AppImage, launches the
+AppImage for a daemon health check, and adds the Linux assets to the same GitHub
+Release.
 
 For a stable tag, the workflow submits the GitHub Actions artifact to SignPath,
 waits for approval and signing, verifies the returned Authenticode signatures,
@@ -43,13 +49,18 @@ after reviewing an official SignPath release.
 
 ## Verify the release
 
-1. Download both assets from the Release page and verify their SHA-256 values.
-2. For a stable release, run `Get-AuthenticodeSignature` on both assets and
+1. Download all Windows and Linux packages from the Release page and verify
+   `SHA256SUMS.txt` and `SHA256SUMS-linux.txt` independently.
+2. For a stable release, run `Get-AuthenticodeSignature` on both Windows assets and
    confirm `Valid` status and the approved SignPath Foundation signer.
-3. Install each package on a clean Windows x64 test account.
-4. Launch RunLit; verify the tray/orb appears and the local daemon responds.
-5. Verify an installed application exits cleanly and can restart.
-6. Ensure the release notes state supported adapters, platform scope, signing
+3. Install the Setup and MSI packages on a clean Windows x64 test account.
+4. Install the `.deb` on a supported Debian/Ubuntu x64 environment and launch the
+   AppImage on a clean Ubuntu x64 desktop.
+5. Launch RunLit; verify the orb appears and the local daemon responds. Verify the
+   notification-area menu where the desktop environment provides a compatible
+   StatusNotifier host.
+6. Verify an installed application exits cleanly and can restart.
+7. Ensure the release notes state supported adapters, platform scope, signing
    status, and known limitations.
 
 Do not publish the internal real-data integration plan or local test databases.

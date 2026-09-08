@@ -1,13 +1,13 @@
 # RunLit 用户手册
 
-> 状态：GitHub 公开发布准备稿
-> 当前产品范围：Windows x64、Codex 与 WorkBuddy AI、本地优先
+> 状态：公开预览版手册
+> 当前产品范围：Windows x64 与 Linux x64、Codex 与 WorkBuddy AI、本地优先
 
 [English](user-guide.en.md) | [开发者适配器指南](adapter-development.md)
 
 ## 1. RunLit 是什么
 
-RunLit 是一个常驻 Windows 桌面的 AI 任务观察与成果导航工具。它把不同 AI 工具中已经产生真实本地修改的任务整理成任务灯，并显示：
+RunLit 是一个常驻 Windows 与 Linux 桌面的 AI 任务观察与成果导航工具。它把不同 AI 工具中已经产生真实本地修改的任务整理成任务灯，并显示：
 
 - 任务来自哪个 AI 工具；
 - 当前是进行中、已完成、已中断还是状态未知；
@@ -29,7 +29,7 @@ RunLit 不负责发起或控制 AI 任务，也不会根据进程存在、普通
 
 ## 3. 安装前须知
 
-当前公开目标平台是 Windows x64。安装版自带 RunLit 后台运行环境，普通用户不需要另外安装 Node.js、npm 或 Rust。
+当前公开目标平台是 Windows x64 与 Linux x64。安装版自带 RunLit 后台运行环境，普通用户不需要另外安装 Node.js、npm 或 Rust。
 
 在使用 RunLit 前，至少应安装并能够正常运行一个受支持的 AI 工具：
 
@@ -40,7 +40,7 @@ RunLit 自身通过本地数据完成任务检测，不依赖互联网刷新；A
 
 ### 关于开发预览版
 
-0.1.0 开发安装包目前尚未代码签名。通过浏览器下载时，Windows 可能显示“未知发布者”或 SmartScreen 提示。正式 GitHub Release 必须明确标注其是否已签名，并同时发布安装包的 SHA-256 校验值。
+0.1.0 Windows 开发安装包目前尚未代码签名。通过浏览器下载时，Windows 可能显示“未知发布者”或 SmartScreen 提示。Linux 包会发布 SHA-256 校验值，但当前没有软件仓库签名。
 
 ## 4. 从 GitHub 安装
 
@@ -48,13 +48,14 @@ RunLit 自身通过本地数据完成任务检测，不依赖互联网刷新；A
 
 1. 打开最新的 RunLit Release。
 2. 阅读版本说明、支持范围和已知问题。
-3. 下载以下任一 Windows x64 安装包：
-   - `Setup.exe`：适合普通用户；
-   - `.msi`：适合需要 MSI 部署的环境。
+3. 下载对应系统的安装包：
+   - Windows x64：普通用户使用 `Setup.exe`，需要集中部署时使用 `.msi`；
+   - Debian/Ubuntu x64：使用 `.deb`；
+   - 其他兼容的 x64 Linux 桌面：使用便携 `.AppImage`。
 4. 对照 Release 页面提供的 SHA-256 校验值。
-5. 完成安装并从开始菜单启动 RunLit。
+5. 完成安装并从 Windows 开始菜单或 Linux 应用菜单启动 RunLit。AppImage 首次运行前执行 `chmod +x Runlit_*.AppImage`。
 
-启动后，Windows 任务栏和通知区域会显示 RunLit 图标，桌面上会出现可以拖动的圆形浮球。
+启动后，桌面上会出现可以拖动的圆形浮球。Windows 任务栏和通知区域会显示 RunLit 图标；Linux 通知区域取决于桌面环境及其 StatusNotifier 宿主，没有托盘时仍可使用浮球。
 
 ## 5. 连接 AI 工具
 
@@ -80,8 +81,8 @@ RunLit 自身通过本地数据完成任务检测，不依赖互联网刷新；A
 RunLit 按以下顺序自动寻找 Codex：
 
 1. 高级用户设置的 `RUNLIT_CODEX_PATH`；
-2. Windows `PATH` 中的 Codex；
-3. 当前用户的 Codex Desktop 安装目录。
+2. 系统 `PATH` 中的 Codex；
+3. 在 Windows 上，当前用户的 Codex Desktop 安装目录。
 
 正常安装的用户通常不需要输入路径。若 Codex 显示 **未发现**：
 
@@ -96,7 +97,7 @@ RunLit 会先寻找当前用户目录中的 `.workbuddy-ai` 数据目录。自�
 
 1. 打开 **AI 工具接入…**；
 2. 找到 WorkBuddy AI 卡片；
-3. 输入 WorkBuddy 数据目录，例如 `C:\Users\你的用户名\.workbuddy-ai`；
+3. 输入 WorkBuddy 数据目录，例如 Windows 的 `C:\Users\你的用户名\.workbuddy-ai` 或 Linux 的 `/home/你的用户名/.workbuddy-ai`；
 4. 选择 **保存并连接**；
 5. 确认状态变为 **已连接**。
 
@@ -185,10 +186,11 @@ RunLit 当前设计为本地优先。Adapter 只应保留完成任务观察所�
 
 RunLit 不应保存聊天正文，也不应读取浏览器 Cookie、密码或私人登录令牌。
 
-Windows 安装版默认把数据库、设置、本地 API 授权令牌和日志保存在：
+安装版默认把数据库、设置、本地 API 授权令牌和日志保存在：
 
 ```text
-%LOCALAPPDATA%\com.runlit.desktop
+Windows: %LOCALAPPDATA%\com.runlit.desktop
+Linux:   ${XDG_DATA_HOME:-$HOME/.local/share}/com.runlit.desktop
 ```
 
 开发模式默认使用仓库中的 `.runlit` 目录。删除任务灯不会删除这些数据，也不会删除 Codex、WorkBuddy 或项目中的原始数据。
@@ -209,7 +211,7 @@ Windows 安装版默认把数据库、设置、本地 API 授权令牌和日志�
 
 - 从通知区域选择 **退出 RunLit**，然后重新启动；
 - 检查是否有另一个程序占用了本地端口 `47831`；
-- 查看 `%LOCALAPPDATA%\com.runlit.desktop\logs` 中的启动和 daemon 日志。
+- 查看平台数据目录下 `logs` 文件夹中的启动和 daemon 日志。
 
 ### Codex 显示“未发现”
 
@@ -244,12 +246,14 @@ Windows 安装版默认把数据库、设置、本地 API 授权令牌和日志�
 ### 成果物无法打开
 
 - 检查文件是否被移动或删除；
-- 检查当前 Windows 用户是否有访问权限；
+- 检查当前系统用户是否有访问权限；
 - 使用版本卡片的 **打开文件夹** 定位本次多个成果物的共同目录。
 
 ## 11. 已知限制
 
-- 当前公开目标仅为 Windows x64；
+- 当前公开目标为 Windows x64 与 Linux x64；暂不支持 macOS 和 ARM64；
+- Linux 通知区域取决于桌面环境；没有兼容托盘时始终可使用浮球入口；
+- Linux `.deb` 与 AppImage 提供校验值，但当前没有软件仓库签名；
 - 当前内置 Adapter 仅包括 Codex 和 WorkBuddy AI；
 - 默认只回看最近 24 小时的 Provider 会话；
 - Provider 的本地数据格式升级后，Adapter 可能需要同步更新；
@@ -260,11 +264,18 @@ Windows 安装版默认把数据库、设置、本地 API 授权令牌和日志�
 
 ## 12. 从源码运行
 
-面向开发者的源码运行环境：Node.js 24+、npm、Rust MSVC 工具链和 WebView2。
+面向开发者的源码运行环境：Node.js 24+、npm、Rust，以及对应平台的 Tauri 系统依赖。
 
 ```powershell
 npm ci
 npm run start:runlit
+```
+
+Linux 安装 Tauri 系统依赖后运行：
+
+```bash
+npm ci
+npm run start:runlit:linux
 ```
 
 创建指向当前仓库的桌面快捷方式：
@@ -280,7 +291,7 @@ npm run shortcut:install
 公开发布后，一般功能问题请通过 GitHub Issues 反馈，并提供：
 
 - RunLit 版本；
-- Windows 版本；
+- 操作系统版本；Linux 请同时注明发行版和桌面环境；
 - AI 工具及其版本；
 - **AI 工具接入…** 页面中的状态；
 - 问题发生时间和可复现步骤；

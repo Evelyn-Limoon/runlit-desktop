@@ -2,9 +2,9 @@
 
 [中文](#中文指南) | [English](#english-guide) | [GitHub Releases](https://github.com/Evelyn-Limoon/runlit-desktop/releases)
 
-> 适用版本 / Applies to: `v0.1.0-preview.2`
+> 适用版本 / Applies to: `v0.1.0-preview.3`
 >
-> 平台 / Platform: Windows x64
+> 平台 / Platform: Windows x64 / Linux x64
 >
 > 状态 / Status: unsigned public preview / 未签名公开预览版
 
@@ -19,7 +19,7 @@ certificate by SignPath Foundation. See the
 
 ### 1. RunLit 是什么
 
-RunLit 是一款常驻 Windows 桌面的 AI 任务观察与成果导航工具。它不替你启动或控制 AI，而是读取受支持工具在本机留下的任务状态与成果证据，并将它们整理成任务灯、版本脉络和可打开的成果入口。
+RunLit 是一款常驻 Windows 与 Linux 桌面的 AI 任务观察与成果导航工具。它不替你启动或控制 AI，而是读取受支持工具在本机留下的任务状态与成果证据，并将它们整理成任务灯、版本脉络和可打开的成果入口。
 
 它适合同时使用多个 AI 工具、经常让 AI 修改本地文件，希望快速确认“哪个任务结束了、这轮改了什么、成果在哪里”的用户。
 
@@ -31,15 +31,15 @@ RunLit 是一款常驻 Windows 桌面的 AI 任务观察与成果导航工具。
 - 使用版本标题旁的铅笔按钮人工重命名版本，最多约 40 个中文字符或 80 个英文字符；
 - 拖动详情窗底部中央短横线，展开查看最新 3 个版本和任务信息；
 - 直接打开单个成果物，或打开多个成果物所在的共同文件夹；
-- 通过浮球和 Windows 通知区域菜单进入接入设置、刷新和退出；
+- 通过浮球和系统通知区域菜单进入接入设置、刷新和退出；Linux 没有兼容托盘宿主时仍可使用浮球；
 - 可恢复地隐藏任务，不删除原始成果和版本历史；
 - 数据本地保存，不保存聊天正文。
 
 ### 3. 安装
 
-1. 打开 [RunLit v0.1.0-preview.2 Release](https://github.com/Evelyn-Limoon/runlit-desktop/releases/tag/v0.1.0-preview.2)。
-2. 普通用户下载 `Runlit_0.1.0_x64-setup.exe`；需要 MSI 部署时下载 `.msi`。
-3. 下载 `SHA256SUMS.txt`，用以下命令校验安装包：
+1. 打开 [RunLit v0.1.0-preview.3 Release](https://github.com/Evelyn-Limoon/runlit-desktop/releases/tag/v0.1.0-preview.3)。
+2. Windows x64 普通用户下载 `Setup.exe`，需要集中部署时下载 `.msi`；Debian/Ubuntu x64 下载 `.deb`；其他兼容 Linux x64 桌面可下载 `.AppImage`。
+3. Windows 下载 `SHA256SUMS.txt`，Linux 下载 `SHA256SUMS-linux.txt`，并校验安装包：
 
 ```powershell
 Get-FileHash -Algorithm SHA256 .\Runlit_0.1.0_x64-setup.exe
@@ -47,12 +47,14 @@ Get-FileHash -Algorithm SHA256 .\Runlit_0.1.0_x64-setup.exe
 
 4. 对比校验值后运行安装程序。
 
+Linux AppImage 首次运行前执行 `chmod +x Runlit_*.AppImage`。`.deb` 用户可使用系统软件中心，或运行 `sudo apt install ./Runlit_*.deb`。
+
 当前版本未签名，Windows 可能显示未知发布者或 SmartScreen 提示。请只从上述 GitHub Release 下载。
 
 ### 4. 第一次连接 AI 工具
 
 1. 启动 RunLit。
-2. 右键浮球或 Windows 通知区域中的 RunLit 图标。
+2. 右键浮球或系统通知区域中的 RunLit 图标。
 3. 选择 **AI 工具接入**。
 4. 查看 Codex 或 WorkBuddy AI 的状态：
    - **已连接：** 可以直接使用；
@@ -97,15 +99,17 @@ Get-FileHash -Algorithm SHA256 .\Runlit_0.1.0_x64-setup.exe
 安装版数据位置：
 
 ```text
-%LOCALAPPDATA%\com.runlit.desktop
+Windows: %LOCALAPPDATA%\com.runlit.desktop
+Linux:   ${XDG_DATA_HOME:-$HOME/.local/share}/com.runlit.desktop
 ```
 
 其中包含数据库、设置、本地 API 授权令牌和日志。RunLit 只监听本机地址 `127.0.0.1`。不要把 `auth-token`、完整日志、用户名、会话 ID 或私人工作路径提交到公开 Issue。
 
 ### 9. 当前限制与故障排查
 
-- 当前只支持 Windows x64；
-- 安装包未签名，可能出现 Windows 安全提示；
+- 当前支持 Windows x64 与 Linux x64，暂不支持 macOS 与 ARM64；
+- Windows 安装包未签名，可能出现 Windows 安全提示；Linux 包提供 SHA-256 校验值，但没有软件仓库签名；
+- Linux 通知区域显示取决于桌面环境，没有托盘时仍可使用浮球；
 - 只有 Codex 和 WorkBuddy AI 是内置 Adapter；
 - 暂无跨设备云同步和自动更新；
 - 任务超过 20 秒仍未出现时，先确认这轮确实产生了本地成果，再检查 **AI 工具接入** 状态；
@@ -120,7 +124,7 @@ Get-FileHash -Algorithm SHA256 .\Runlit_0.1.0_x64-setup.exe
 
 ### 1. What RunLit is
 
-RunLit is a resident Windows desktop observer and result navigator for AI work. It does not launch or control your AI tools. It reads supported local task-state and artifact evidence, then organizes that evidence into task lights, material versions, and direct result links.
+RunLit is a resident Windows and Linux desktop observer and result navigator for AI work. It does not launch or control your AI tools. It reads supported local task-state and artifact evidence, then organizes that evidence into task lights, material versions, and direct result links.
 
 It is designed for people who use more than one AI tool and want a quick answer to: Which task finished? What changed in this interaction? Where is the result?
 
@@ -132,21 +136,23 @@ It is designed for people who use more than one AI tool and want a quick answer 
 - Rename a version with the pencil beside its title, using up to about 40 Chinese or 80 English characters.
 - Drag the bottom-center handle to reveal the latest three versions and task metadata.
 - Open one artifact directly or open the common folder for multiple artifacts.
-- Access connections, refresh, and exit from both the orb and Windows notification-area menus.
+- Access connections, refresh, and exit from both the orb and notification-area menus. The orb remains available on Linux desktops without a compatible tray host.
 - Hide tasks recoverably without deleting source artifacts or RunLit history.
 - Keep observation data local without storing chat bodies.
 
 ### 3. Installation
 
-1. Open the [RunLit v0.1.0-preview.2 Release](https://github.com/Evelyn-Limoon/runlit-desktop/releases/tag/v0.1.0-preview.2).
-2. Download `Runlit_0.1.0_x64-setup.exe` for normal installation, or the `.msi` for MSI deployment.
-3. Download `SHA256SUMS.txt` and verify the installer:
+1. Open the [RunLit v0.1.0-preview.3 Release](https://github.com/Evelyn-Limoon/runlit-desktop/releases/tag/v0.1.0-preview.3).
+2. On Windows x64, download `Setup.exe` for normal installation or `.msi` for managed deployment. On Debian/Ubuntu x64, download `.deb`; on another compatible Linux x64 desktop, download `.AppImage`.
+3. Download `SHA256SUMS.txt` for Windows or `SHA256SUMS-linux.txt` for Linux and verify the package:
 
 ```powershell
 Get-FileHash -Algorithm SHA256 .\Runlit_0.1.0_x64-setup.exe
 ```
 
 4. Compare the checksum, then run the installer.
+
+For AppImage, run `chmod +x Runlit_*.AppImage` once. Debian/Ubuntu users can install the `.deb` through the software center or with `sudo apt install ./Runlit_*.deb`.
 
 This preview is unsigned, so Windows may show an Unknown Publisher or SmartScreen warning. Download it only from the GitHub Release above.
 
@@ -198,15 +204,17 @@ Manual refresh is normally unnecessary. After changing a connection, use **Redet
 Installed-app data is stored under:
 
 ```text
-%LOCALAPPDATA%\com.runlit.desktop
+Windows: %LOCALAPPDATA%\com.runlit.desktop
+Linux:   ${XDG_DATA_HOME:-$HOME/.local/share}/com.runlit.desktop
 ```
 
 This directory contains the database, settings, local API authorization token, and logs. RunLit listens only on `127.0.0.1`. Never publish `auth-token`, complete logs, user names, session IDs, or private workspace paths in a public issue.
 
 ### 9. Current limits and troubleshooting
 
-- Windows x64 only.
-- The installer is unsigned and may trigger a Windows warning.
+- Windows x64 and Linux x64 are supported; macOS and ARM64 are not supported yet.
+- Windows installers are unsigned and may trigger a warning. Linux packages have SHA-256 checksums but no repository signature.
+- Linux notification-area availability depends on the desktop environment; use the floating orb when a tray host is unavailable.
 - Codex and WorkBuddy AI are the only built-in adapters.
 - No cross-device cloud sync or automatic updater yet.
 - If a task has not appeared after 20 seconds, confirm that the interaction produced a real local artifact, then inspect **AI Tool Connections**.
