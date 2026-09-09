@@ -876,8 +876,8 @@ type DetailPanelProps = {
 };
 
 function DetailPanel({ panelRef, task, privateMode, health, orbMessage, onDismissMessage, onTogglePrivate, onOpenSettings, onSnapshot, panelHeight, onResizePointerDown, onResizePointerMove, onResizePointerUp, onResizeKeyDown }: DetailPanelProps) {
-  const [showAllVersions, setShowAllVersions] = useState(false);
-  useEffect(() => setShowAllVersions(false), [task?.id]);
+  const [expandedTaskId, setExpandedTaskId] = useState<string>();
+  const showAllVersions = expandedTaskId === task?.id;
   const versions = useMemo(() => [...(task?.versions ?? [])].reverse(), [task?.versions]);
   const visibleVersions = showAllVersions ? versions : versions.slice(0, 3);
   const hiddenVersionCount = Math.max(0, versions.length - visibleVersions.length);
@@ -924,7 +924,7 @@ function DetailPanel({ panelRef, task, privateMode, health, orbMessage, onDismis
               </article>
             )})}
           </div>
-          {versions.length > 3 && <button className="history-toggle" onClick={() => setShowAllVersions((current) => !current)}>{showAllVersions ? "收起历史版本" : `查看更早 ${hiddenVersionCount} 个版本`}</button>}
+          {versions.length > 3 && <button className="history-toggle" onClick={() => setExpandedTaskId((current) => current === task?.id ? undefined : task?.id)}>{showAllVersions ? "收起历史版本" : `查看更早 ${hiddenVersionCount} 个版本`}</button>}
           {task.versions.length === 0 && <div className="empty-state">尚未识别到版本证据</div>}
           <footer className="task-footer">
             <div><span>状态依据</span><strong>{statusEvidence(task)}</strong></div>
