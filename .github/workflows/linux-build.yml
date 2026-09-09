@@ -33,9 +33,12 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: package-lock.json
       - uses: dtolnay/rust-toolchain@stable
       - name: Install dependencies
         run: npm ci
+      - name: Validate release workflow policy
+        run: npm run preflight:release
       - name: Test
         run: npm test
       - name: Build application
@@ -98,6 +101,11 @@ jobs:
           for attempt in {1..80}; do
             if curl --fail --silent http://127.0.0.1:47831/health | grep -q 'runlit-daemon'; then
               curl --fail --silent -X POST -H 'Origin: http://tauri.localhost' http://127.0.0.1:47831/shutdown >/dev/null
+              for release_attempt in {1..40}; do
+                if ! (echo >/dev/tcp/127.0.0.1/47831) 2>/dev/null; then port_released=1; break; fi
+                sleep 0.25
+              done
+              test "${port_released:-0}" = 1
               kill "$desktop_pid" 2>/dev/null || true
               wait "$desktop_pid" || true
               exit 0
@@ -125,6 +133,11 @@ jobs:
           for attempt in {1..80}; do
             if curl --fail --silent http://127.0.0.1:47831/health | grep -q 'runlit-daemon'; then
               curl --fail --silent -X POST -H 'Origin: http://tauri.localhost' http://127.0.0.1:47831/shutdown >/dev/null
+              for release_attempt in {1..40}; do
+                if ! (echo >/dev/tcp/127.0.0.1/47831) 2>/dev/null; then port_released=1; break; fi
+                sleep 0.25
+              done
+              test "${port_released:-0}" = 1
               kill "$desktop_pid" 2>/dev/null || true
               wait "$desktop_pid" || true
               exit 0

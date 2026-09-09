@@ -23,6 +23,7 @@
     "build": "npm run build -w @runlit/protocol && npm run build -w @runlit/daemon && npm run build -w @runlit/desktop",
     "prepare:bundle": "node scripts/prepare-daemon-bundle.mjs",
     "test": "npm run test -w @runlit/protocol && npm run build -w @runlit/protocol && npm run test -w @runlit/daemon && npm run test -w @runlit/desktop",
+    "preflight:release": "node scripts/validate-release-config.mjs",
     "start:runlit": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-runlit.ps1",
     "start:runlit:linux": "bash scripts/start-runlit.sh",
     "shortcut:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-desktop-shortcut.ps1",

@@ -48,6 +48,29 @@ test("resolves Codex for portable Windows source launches", () => {
       platform: "win32",
       pathDelimiter: ";",
     }), { executable: currentExecutable, source: "codex_desktop", shell: false });
+
+    rmSync(join(desktopRoot, "old-build"), { recursive: true, force: true });
+    rmSync(join(desktopRoot, "current-build"), { recursive: true, force: true });
+    const legacyExecutable = join(desktopRoot, "codex.exe");
+    writeFileSync(legacyExecutable, "");
+    assert.deepEqual(resolveCodexExecutable({
+      env: { PATH: "", LOCALAPPDATA: directory },
+      platform: "win32",
+      pathDelimiter: ";",
+    }), { executable: legacyExecutable, source: "codex_desktop", shell: false });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("reports Codex as unavailable instead of guessing when it is not installed", () => {
+  const directory = mkdtempSync(join(tmpdir(), "runlit-no-codex-"));
+  try {
+    assert.throws(() => resolveCodexExecutable({
+      env: { PATH: "", LOCALAPPDATA: directory },
+      platform: "win32",
+      pathDelimiter: ";",
+    }), /未找到 Codex CLI/);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

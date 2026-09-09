@@ -6,10 +6,11 @@ This document describes the release workflow for RunLit maintainers.
 
 1. Set the same version in the root package metadata and Tauri configuration.
 2. Update `CHANGELOG.md` with user-visible changes and known limitations.
-3. Run `npm ci`, `npm test`, `npm run build`, `cargo test`, `npm audit`, and
-   `cargo audit` on a clean checkout.
-4. Confirm the native Windows bundles build, their bundled daemon health check
-   passes, and the installer succeeds on a clean Windows runner.
+3. Run `npm ci`, `npm run preflight:release`, `npm test`, `npm run build`,
+   `cargo test`, `npm audit`, and `cargo audit` on a clean checkout. Follow the
+   executable gates in [`release-preflight.md`](release-preflight.md).
+4. Confirm the native Windows bundles build and the clean-runner preflight passes,
+   including missing-Codex fallback, daemon port release, install, and uninstall.
 5. Confirm the Linux `.deb` and `.AppImage` bundles build on Ubuntu 22.04, the
    packaged files are valid, and the AppImage starts its bundled daemon in a
    clean headless desktop session.

@@ -29,7 +29,7 @@ Keep provider parsing inside adapters; do not add provider conditions to shared 
 - `README.md` and `README.zh-CN.md`: current public product scope and download entry.
 - `docs/adapter-development.md`: adapter contract and extension boundary.
 - `docs/user-guide.en.md` and `docs/user-guide.zh-CN.md`: user-visible behavior.
-- `docs/release-process.md`: release gates, signing, checksums, and tag policy.
+- `docs/release-process.md` and `docs/release-preflight.md`: release procedure and executable release gates.
 - `SECURITY.md` and `PRIVACY.md`: security reporting and data-handling promises.
 - Protocol schemas and tests define accepted event shapes; update docs with behavior changes.
 

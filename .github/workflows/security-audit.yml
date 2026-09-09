@@ -27,6 +27,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: package-lock.json
       - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
       - run: npm audit --audit-level=high
