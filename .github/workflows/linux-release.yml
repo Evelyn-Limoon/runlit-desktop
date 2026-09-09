@@ -148,7 +148,7 @@ jobs:
             sha256sum *.deb *.AppImage > ../SHA256SUMS-linux.txt
           )
       - name: Upload Linux release artifact for inspection
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: runlit-linux-release-${{ env.RELEASE_TAG }}
           path: |
