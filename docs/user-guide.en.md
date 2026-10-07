@@ -224,6 +224,13 @@ The uninstaller may preserve the user database and logs. Check and remove this d
 
 Do not hard-code another user's name, drive letter, or Codex version hash into RunLit source code.
 
+### Codex is connected, but a task is missing
+
+- Confirm that the session actually modified a local result inside its current workspace.
+- Check the Codex scan counts in **AI Tool Connections**, then select **Save diagnostic report**. The JSON report omits local paths, session IDs, tokens, and chat bodies; inspect it before sharing.
+- A file modified during a completed Codex shell command may appear as a **possible artifact**. Its attribution remains uncertain if another process edited it at the same time.
+- If the provider cannot expose enough session evidence, connect a dedicated output folder for artifact-only monitoring.
+
 ### WorkBuddy is “Not found”
 
 - run WorkBuddy at least once;

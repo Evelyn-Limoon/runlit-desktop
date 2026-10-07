@@ -4,6 +4,30 @@ All notable changes to RunLit are documented here.
 
 ## [Unreleased]
 
+## [0.1.0-preview.4] - 2026-10-07
+
+### Fixed
+
+- Detect possible result files from completed Codex shell commands when the App Server omits direct file-change records; keep attribution explicitly uncertain.
+- Resume Codex scanning after App Server errors and show why workspaces were skipped or could not be read.
+- Prevent the desktop app and Windows source launcher from reusing or stopping an unrelated RunLit daemon on the local port.
+- Treat existing files as a baseline when first connecting an output folder, including files with timestamps slightly ahead of the process clock.
+- Refresh vulnerable transitive npm dependencies.
+
+### Added
+
+- Save a diagnostic report with connection state and scan counts for troubleshooting. It omits local paths, session IDs, tokens, and chat bodies; review it before sharing.
+- Add a GitHub bug report form that asks for the diagnostic report and reproduction steps.
+
+### Changed
+
+- Rewrite the English and Chinese project introductions to explain supported connections, evidence limits, privacy, and preview scope.
+
+### Known limitations
+
+- A possible result inferred from file timing is not proof that Codex wrote the file. Confirm it in the project before relying on it.
+- The Windows preview remains unsigned. Automatic updates, cloud sync, macOS, and ARM64 are not included.
+
 ## [0.1.0-preview.3] - 2026-09-08
 
 ### Added

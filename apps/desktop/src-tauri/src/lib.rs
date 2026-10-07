@@ -1,8 +1,8 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::fs::{self, OpenOptions};
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpStream};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -17,6 +17,7 @@ const PANEL_WIDTH: f64 = 520.0;
 const PANEL_MIN_HEIGHT: f64 = 420.0;
 const EDGE_MARGIN: i32 = 12;
 const MAX_ORB_IMAGE_BYTES: u64 = 1024 * 1024;
+const MAX_DIAGNOSTIC_BYTES: usize = 1024 * 1024;
 
 fn should_snap_to_edge(compact: bool, near_edge: bool) -> bool {
     !compact && near_edge
@@ -68,6 +69,25 @@ fn pick_adapter_folder() -> Option<String> {
 }
 
 #[tauri::command]
+fn save_diagnostic_report(contents: String) -> Result<Option<String>, String> {
+    if contents.len() > MAX_DIAGNOSTIC_BYTES {
+        return Err("诊断报告超过 1MB".into());
+    }
+    serde_json::from_str::<serde_json::Value>(&contents)
+        .map_err(|_| "诊断报告格式无效".to_string())?;
+    let Some(path) = rfd::FileDialog::new()
+        .set_title("保存 RunLit 诊断报告")
+        .add_filter("JSON", &["json"])
+        .set_file_name("runlit-diagnostics.json")
+        .save_file()
+    else {
+        return Ok(None);
+    };
+    fs::write(&path, contents).map_err(|error| error.to_string())?;
+    Ok(Some(path.to_string_lossy().into_owned()))
+}
+
+#[tauri::command]
 fn open_target(target: String) -> Result<(), String> {
     let is_web = target.starts_with("https://") || target.starts_with("http://");
     if !is_web && !Path::new(&target).exists() {
@@ -111,17 +131,50 @@ fn quit_runlit(app: AppHandle) {
 }
 
 fn exit_runlit(app: &AppHandle) {
-    stop_daemon();
+    stop_daemon(app);
     app.exit(0);
 }
 
-fn stop_daemon() {
+fn daemon_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    if let Some(path) = std::env::var_os("RUNLIT_DATA_DIR") {
+        if !path.is_empty() {
+            return Ok(PathBuf::from(path));
+        }
+    }
+    app.path().app_local_data_dir().map_err(|error| error.to_string())
+}
+
+fn daemon_token(app: &AppHandle) -> Option<String> {
+    let token = fs::read_to_string(daemon_data_dir(app).ok()?.join("auth-token")).ok()?;
+    let token = token.trim().to_owned();
+    (token.len() == 64 && token.chars().all(|character| character.is_ascii_hexdigit()))
+        .then_some(token)
+}
+
+fn daemon_auth_status(token: &str) -> Option<u16> {
+    let address = SocketAddr::from(([127, 0, 0, 1], 47831));
+    let mut stream = TcpStream::connect_timeout(&address, Duration::from_millis(250)).ok()?;
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
+    let _ = stream.set_write_timeout(Some(Duration::from_millis(250)));
+    let request = format!("GET /diagnostics/report HTTP/1.1\r\nHost: 127.0.0.1:47831\r\nAuthorization: Bearer {token}\r\nConnection: close\r\n\r\n");
+    stream.write_all(request.as_bytes()).ok()?;
+    let mut first_line = String::new();
+    BufReader::new(stream).read_line(&mut first_line).ok()?;
+    first_line.split_whitespace().nth(1)?.parse().ok()
+}
+
+fn owned_daemon_token(app: &AppHandle) -> Option<String> {
+    let token = daemon_token(app)?;
+    (daemon_auth_status(&token) == Some(200)).then_some(token)
+}
+
+fn stop_daemon(app: &AppHandle) {
+    let Some(token) = owned_daemon_token(app) else { return };
     let address = SocketAddr::from(([127, 0, 0, 1], 47831));
     if let Ok(mut stream) = TcpStream::connect_timeout(&address, Duration::from_millis(250)) {
         let _ = stream.set_write_timeout(Some(Duration::from_millis(250)));
-        let _ = stream.write_all(
-            b"POST /shutdown HTTP/1.1\r\nHost: 127.0.0.1:47831\r\nOrigin: http://tauri.localhost\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
-        );
+        let request = format!("POST /shutdown HTTP/1.1\r\nHost: 127.0.0.1:47831\r\nAuthorization: Bearer {token}\r\nOrigin: http://tauri.localhost\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
+        let _ = stream.write_all(request.as_bytes());
     }
 }
 
@@ -145,7 +198,15 @@ fn runlit_daemon_is_ready() -> bool {
 
 fn start_bundled_daemon(app: &AppHandle) -> Result<(), String> {
     if runlit_daemon_is_ready() {
-        return Ok(());
+        return if owned_daemon_token(app).is_some() {
+            Ok(())
+        } else {
+            Err("另一份 RunLit 后台正在使用端口 47831。请退出该实例后重试。".into())
+        };
+    }
+    let address = SocketAddr::from(([127, 0, 0, 1], 47831));
+    if TcpStream::connect_timeout(&address, Duration::from_millis(250)).is_ok() {
+        return Err("端口 47831 已被其他程序占用。请关闭占用程序后重试。".into());
     }
 
     let resource_dir = app.path().resource_dir().map_err(|error| error.to_string())?;
@@ -163,10 +224,7 @@ fn start_bundled_daemon(app: &AppHandle) -> Result<(), String> {
         ));
     }
 
-    let data_dir = app
-        .path()
-        .app_local_data_dir()
-        .map_err(|error| error.to_string())?;
+    let data_dir = daemon_data_dir(app)?;
     let log_dir = app.path().app_log_dir().map_err(|error| error.to_string())?;
     fs::create_dir_all(&data_dir).map_err(|error| error.to_string())?;
     fs::create_dir_all(&log_dir).map_err(|error| error.to_string())?;
@@ -203,7 +261,11 @@ fn start_bundled_daemon(app: &AppHandle) -> Result<(), String> {
     let deadline = Instant::now() + Duration::from_secs(8);
     while Instant::now() < deadline {
         if runlit_daemon_is_ready() {
-            return Ok(());
+            if owned_daemon_token(app).is_some() {
+                return Ok(());
+            }
+            let _ = child.kill();
+            return Err("端口 47831 已被其他 RunLit 后台占用，无法确认当前数据目录。".into());
         }
         thread::sleep(Duration::from_millis(100));
     }
@@ -443,6 +505,7 @@ pub fn run() {
             quit_runlit,
             pick_orb_image,
             pick_adapter_folder,
+            save_diagnostic_report,
             set_window_mode,
             resize_expanded_window,
             drag_and_snap

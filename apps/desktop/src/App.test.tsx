@@ -28,6 +28,7 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 test("automatically refreshes the task lights when the local snapshot changes", async () => {
@@ -246,6 +247,29 @@ test("opens the AI adapter settings from the orb menu and shows live adapter sta
   expect(screen.getByText("WorkBuddy AI")).toBeInTheDocument();
   expect(screen.getAllByText("已连接")).toHaveLength(2);
   expect(screen.getByText("C:\\Users\\tester\\.workbuddy-ai")).toBeInTheDocument();
+});
+
+test("saves a path-free diagnostic report from AI tool settings", async () => {
+  const report = { schemaVersion: 1, adapters: { codex: { state: "ready", lastResult: { threadsSeen: 3 } } } };
+  vi.stubGlobal("URL", Object.assign(class extends URL {}, {
+    createObjectURL: vi.fn().mockReturnValue("blob:runlit-report"),
+    revokeObjectURL: vi.fn(),
+  }));
+  const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+  vi.mocked(fetch).mockImplementation((input) => {
+    const url = String(input);
+    if (url.endsWith("/diagnostics/report")) return Promise.resolve({ ok: true, json: () => Promise.resolve(report) } as Response);
+    if (url.endsWith("/adapters")) return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ generatedAt: new Date().toISOString(), tasks: [] }) } as Response);
+  });
+
+  render(<App />);
+  fireEvent.contextMenu(screen.getByRole("button", { name: "R" }), { clientX: 30, clientY: 30 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "AI 工具接入…" }));
+  fireEvent.click(await screen.findByRole("button", { name: "保存诊断报告" }));
+  expect(await screen.findByText("诊断报告已下载。")).toBeInTheDocument();
+  expect(fetch).toHaveBeenCalledWith("http://127.0.0.1:47831/diagnostics/report", { cache: "no-store" });
+  expect(click).toHaveBeenCalledOnce();
 });
 
 test("adds a new AI tool from the visible folder-monitoring form", async () => {

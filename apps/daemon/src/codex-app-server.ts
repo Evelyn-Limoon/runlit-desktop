@@ -42,6 +42,9 @@ type CodexItem = {
   type?: string;
   status?: string;
   changes?: CodexFileChange[];
+  cwd?: string;
+  exitCode?: number | null;
+  commandActions?: { type?: string }[];
 };
 
 type CodexTurn = {
@@ -72,13 +75,29 @@ export type CodexScanResult = {
   threadsRead: number;
   observationsAdded: number;
   tasksResolved: number;
+  missingWorkspace: number;
+  missingPath: number;
+  outsideLookback: number;
+  unchanged: number;
+  readErrors: number;
+  threadsWithoutFileChange: number;
+  timeCorrelatedArtifacts: number;
 };
 
 export type CodexAdapterStatus = AdapterStatus & {
   executablePath?: string;
   executableSource?: CodexExecutableSource;
   lastResult?: CodexScanResult;
+  diagnosticHistory?: { at: string; state: "ready" | "error" | "unavailable"; result?: CodexScanResult; errorCode?: string }[];
 };
+
+function diagnosticErrorCode(message: string) {
+  if (/timeout|超时/i.test(message)) return "request_timeout";
+  if (/ENOENT|不存在|未找到/i.test(message)) return "path_missing";
+  if (/EACCES|EPERM|denied|权限/i.test(message)) return "access_denied";
+  if (/已停止|closed|连接已关闭/i.test(message)) return "connection_closed";
+  return "adapter_error";
+}
 
 export type CodexExecutableSource = "environment" | "path" | "codex_desktop";
 
@@ -221,6 +240,55 @@ function aggregateLocalTargets(paths: string[], workspacePath: string) {
   return { target: common, kind: "directory" as const, label: `${unique.length} 个成果物 · ${basename(common)}`, count: unique.length };
 }
 
+const IGNORED_OUTPUT_DIRECTORIES = new Set([
+  ".git", ".runlit", ".next", ".cache", ".venv", "node_modules", "target", "dist", "build", "coverage",
+]);
+const IGNORED_OUTPUT_SUFFIXES = [".db", ".sqlite", ".log", ".lock", ".tmp"];
+
+/** A bounded fallback for Codex turns that wrote files through a shell command. */
+function timeCorrelatedFiles(workspacePath: string, turn: CodexTurn, now: Date) {
+  const startedAt = turn.startedAt ? new Date(eventTime(turn.startedAt)).getTime() : NaN;
+  const completedAt = turn.completedAt ? new Date(eventTime(turn.completedAt)).getTime() : NaN;
+  if (!Number.isFinite(startedAt) || !Number.isFinite(completedAt)
+    || completedAt < startedAt || completedAt - startedAt > 2 * 60 * 60 * 1000
+    || completedAt > now.getTime() + 60_000) return [];
+
+  const workspace = resolve(workspacePath);
+  if (dirname(workspace) === workspace) return [];
+  const wroteFromWorkspace = (turn.items ?? []).some((item) => item.type === "commandExecution"
+    && item.status === "completed" && item.exitCode === 0
+    && (!item.cwd || isInside(workspace, resolve(item.cwd)))
+    && (!item.commandActions?.length || item.commandActions.some((action) => action.type === "unknown")));
+  if (!wroteFromWorkspace) return [];
+
+  const matches: string[] = [];
+  const pending = [{ path: workspace, depth: 0 }];
+  let visited = 0;
+  while (pending.length && visited < 5_000 && matches.length < 30) {
+    const current = pending.pop()!;
+    let entries;
+    try { entries = readdirSync(current.path, { withFileTypes: true }); } catch { continue; }
+    for (const entry of entries) {
+      if (++visited > 5_000 || matches.length >= 30) break;
+      const path = join(current.path, entry.name);
+      if (entry.isDirectory()) {
+        if (current.depth < 7 && !IGNORED_OUTPUT_DIRECTORIES.has(entry.name.toLowerCase())) {
+          pending.push({ path, depth: current.depth + 1 });
+        }
+        continue;
+      }
+      if (!entry.isFile() || IGNORED_OUTPUT_SUFFIXES.some((suffix) => entry.name.toLowerCase().endsWith(suffix))) continue;
+      try {
+        const stat = statSync(path);
+        if (stat.size > 0 && stat.mtimeMs >= startedAt - 5_000 && stat.mtimeMs <= completedAt + 30_000) {
+          matches.push(path);
+        }
+      } catch { /* A file can disappear while the workspace is being scanned. */ }
+    }
+  }
+  return matches;
+}
+
 function mapTurnStatus(status?: string): { kind: "session.activity" | "session.ended"; status: TaskStatus } | undefined {
   if (status === "inProgress") return { kind: "session.activity", status: "running" };
   if (status === "completed") return { kind: "session.ended", status: "completed" };
@@ -252,6 +320,8 @@ type RolloutState = { path: string; offset: number; remainder: string; lifecycle
 class CodexRolloutLifecycleReader {
   private readonly states = new Map<string, RolloutState>();
   private readonly sessionsRoot = resolve(process.env.RUNLIT_CODEX_SESSIONS_DIR ?? join(homedir(), ".codex", "sessions"));
+  private rolloutPaths: string[] = [];
+  private rolloutIndexAt = 0;
 
   read(threadId: string) {
     let state = this.states.get(threadId);
@@ -264,7 +334,8 @@ class CodexRolloutLifecycleReader {
       return state.lifecycle;
     }
 
-    const size = statSync(state.path).size;
+    let size: number;
+    try { size = statSync(state.path).size; } catch { this.states.delete(threadId); return undefined; }
     if (size < state.offset) {
       state.offset = size;
       state.remainder = "";
@@ -289,9 +360,22 @@ class CodexRolloutLifecycleReader {
 
   private findRollout(threadId: string) {
     if (!existsSync(this.sessionsRoot)) return undefined;
-    const relativePaths = readdirSync(this.sessionsRoot, { recursive: true, encoding: "utf8" });
-    const relativePath = relativePaths.find((path) => path.endsWith(".jsonl") && basename(path).includes(threadId));
+    const now = Date.now();
+    if (!this.rolloutIndexAt || now - this.rolloutIndexAt > 30_000) this.refreshRolloutIndex(now);
+    let relativePath = this.rolloutPaths.find((path) => basename(path).includes(threadId));
+    if (!relativePath && now - this.rolloutIndexAt > 2_000) {
+      this.refreshRolloutIndex(now);
+      relativePath = this.rolloutPaths.find((path) => basename(path).includes(threadId));
+    }
     return relativePath ? resolve(this.sessionsRoot, relativePath) : undefined;
+  }
+
+  private refreshRolloutIndex(now: number) {
+    try {
+      this.rolloutPaths = readdirSync(this.sessionsRoot, { recursive: true, encoding: "utf8" })
+        .filter((path) => path.endsWith(".jsonl"));
+      this.rolloutIndexAt = now;
+    } catch { this.rolloutPaths = []; this.rolloutIndexAt = now; }
   }
 
   private findLatestLifecycle(path: string, size: number) {
@@ -352,12 +436,21 @@ export async function scanCodexThreads(
   let threadsRead = 0;
   let observationsAdded = 0;
   const resolvedTasks = new Set<string>();
+  let missingWorkspace = 0;
+  let missingPath = 0;
+  let outsideLookback = 0;
+  let unchanged = 0;
+  let readErrors = 0;
+  let threadsWithoutFileChange = 0;
+  let timeCorrelatedArtifacts = 0;
 
   for (const thread of threads) {
     const revision = thread.updatedAt ?? thread.createdAt ?? 0;
     const timestamp = eventTime(revision);
     const timestampMs = new Date(timestamp).getTime();
-    if (!thread.cwd || !existsSync(thread.cwd) || timestampMs < cutoff) continue;
+    if (!thread.cwd) { missingWorkspace += 1; continue; }
+    if (!existsSync(thread.cwd)) { missingPath += 1; continue; }
+    if (timestampMs < cutoff) { outsideLookback += 1; continue; }
     const workspacePath = thread.cwd;
     const previousRevision = previous[thread.id];
     const isTrackedTask = database.hasTaskForSession("codex", thread.id);
@@ -409,15 +502,17 @@ export async function scanCodexThreads(
     // Codex Desktop can append lifecycle and FileChange records without changing
     // the App Server thread revision. A new lifecycle record must therefore
     // force one detail read; otherwise a running candidate can never qualify.
-    if (revisionUnchanged && !isTrackedTask && !lifecycleChanged) continue;
+    if (revisionUnchanged && !isTrackedTask && !lifecycleChanged) { unchanged += 1; continue; }
 
     let detail: CodexThreadDetail;
     try {
       detail = await client.readThread(thread.id);
     } catch {
+      readErrors += 1;
       continue;
     }
     threadsRead += 1;
+    let foundDirectFileChange = false;
     for (const turn of detail.turns ?? []) {
       if (!turn.id || turn.status !== "completed") continue;
       const targets = (turn.items ?? [])
@@ -425,7 +520,41 @@ export async function scanCodexThreads(
         .flatMap((item) => item.changes ?? [])
         .flatMap((change) => change.path ? [isAbsolute(change.path) ? resolve(change.path) : resolve(workspacePath, change.path)] : []);
       const artifact = aggregateLocalTargets(targets, workspacePath);
-      if (!artifact) continue;
+      if (!artifact) {
+        const completedAtMs = turn.completedAt ? new Date(eventTime(turn.completedAt)).getTime() : NaN;
+        const competingThread = threads.some((other) => other.id !== thread.id && other.cwd
+          && resolve(other.cwd) === resolve(workspacePath)
+          && Math.abs(new Date(eventTime(other.updatedAt ?? other.createdAt)).getTime() - completedAtMs) <= 30_000);
+        const correlated = competingThread ? [] : timeCorrelatedFiles(workspacePath, turn, scanNow);
+        const candidate = aggregateLocalTargets(correlated, workspacePath);
+        if (!candidate) continue;
+        timeCorrelatedArtifacts += 1;
+        const build = database.apply({
+          type: "observation.recorded",
+          occurredAt: eventTime(turn.startedAt),
+          payload: {
+            id: `codex:${thread.id}:turn:${turn.id}:command-write-window`,
+            provider: "codex", providerSessionId: thread.id, providerInstanceId: "codex-app-server",
+            kind: "build.started", source: "app_server", strength: "strong", title, workspacePath,
+          },
+        });
+        if (!build.duplicate) observationsAdded += 1;
+        if (build.resolvedTaskId) resolvedTasks.add(build.resolvedTaskId);
+        const observed = database.apply({
+          type: "observation.recorded",
+          occurredAt: eventTime(turn.completedAt),
+          payload: {
+            id: `codex:${thread.id}:turn:${turn.id}:time-correlated:${shortHash(candidate.target)}`,
+            provider: "codex", providerSessionId: thread.id, providerInstanceId: "codex-local-store",
+            kind: "artifact.detected", source: "file_system", strength: "medium", title, workspacePath,
+            target: candidate.target, artifactKind: candidate.kind, artifactLabel: candidate.label,
+          },
+        });
+        if (!observed.duplicate) observationsAdded += 1;
+        if (observed.resolvedTaskId) resolvedTasks.add(observed.resolvedTaskId);
+        continue;
+      }
+      foundDirectFileChange = true;
       const observation: RunlitEvent = {
         type: "observation.recorded",
         occurredAt: eventTime(turn.completedAt ?? revision),
@@ -448,6 +577,8 @@ export async function scanCodexThreads(
       if (!result.duplicate) observationsAdded += 1;
       if (result.resolvedTaskId) resolvedTasks.add(result.resolvedTaskId);
     }
+
+    if (!foundDirectFileChange) threadsWithoutFileChange += 1;
 
     const latestTurn = detail.turns?.at(-1);
     const lifecycle = loggedLifecycle ? undefined : mapTurnStatus(latestTurn?.status);
@@ -483,7 +614,11 @@ export async function scanCodexThreads(
     payload: { adapterId: ADAPTER_ID, provider: "codex", cursor: JSON.stringify(revisions) },
   });
 
-  return { threadsSeen: threads.length, threadsRead, observationsAdded, tasksResolved: resolvedTasks.size };
+  return {
+    threadsSeen: threads.length, threadsRead, observationsAdded, tasksResolved: resolvedTasks.size,
+    missingWorkspace, missingPath, outsideLookback, unchanged, readErrors,
+    threadsWithoutFileChange, timeCorrelatedArtifacts,
+  };
 }
 
 class CodexStdioClient implements CodexReadClient {
@@ -580,6 +715,7 @@ class CodexStdioClient implements CodexReadClient {
 export class CodexAppServerAdapter {
   private client?: CodexStdioClient;
   private timer?: NodeJS.Timeout;
+  private scanInFlight?: Promise<boolean>;
   private stopped = false;
   readonly status: CodexAdapterStatus = {
     id: "codex",
@@ -589,7 +725,15 @@ export class CodexAppServerAdapter {
     state: "starting",
     connectionMode: "app_server",
     detail: "通过 Codex App Server 和本地生命周期记录自动同步",
+    diagnosticHistory: [],
   };
+
+  private rememberDiagnostic(state: "ready" | "error" | "unavailable", result?: CodexScanResult, error?: string) {
+    const history = this.status.diagnosticHistory ??= [];
+    history.push({ at: new Date().toISOString(), state, ...(result ? { result } : {}),
+      ...(error ? { errorCode: diagnosticErrorCode(error) } : {}) });
+    if (history.length > 60) history.splice(0, history.length - 60);
+  }
 
   constructor(
     private readonly database: RunlitDatabase,
@@ -609,18 +753,21 @@ export class CodexAppServerAdapter {
       this.status.executableSource = resolution.source;
       this.client = new CodexStdioClient(resolution);
       await this.client.connect();
-      await this.scan();
-      this.timer = setInterval(() => void this.scan(), this.pollIntervalMs);
+      if (!await this.scan()) {
+        this.scheduleRetry();
+        return;
+      }
+      this.timer = setInterval(() => {
+        void this.scan().then((ready) => { if (!ready) this.scheduleRetry(); });
+      }, this.pollIntervalMs);
       this.timer.unref();
     } catch (error) {
       this.status.state = "unavailable";
       this.status.lastError = error instanceof Error ? error.message : "Codex App Server 不可用";
+      this.rememberDiagnostic("unavailable", undefined, this.status.lastError);
       this.client?.close();
       this.client = undefined;
-      if (!this.stopped) {
-        this.timer = setTimeout(() => void this.start(), 15_000);
-        this.timer.unref();
-      }
+      this.scheduleRetry();
     }
   }
 
@@ -633,22 +780,49 @@ export class CodexAppServerAdapter {
   }
 
   async refresh() {
-    if (this.client) await this.scan();
+    if (this.client) {
+      if (!await this.scan()) this.scheduleRetry();
+    }
     else await this.start();
   }
 
-  private async scan() {
-    if (!this.client || this.status.state === "error") return;
+  private scheduleRetry() {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = undefined;
+    if (this.stopped) return;
+    this.timer = setTimeout(() => void this.start(), 15_000);
+    this.timer.unref();
+  }
+
+  private scan(): Promise<boolean> {
+    if (!this.client) return Promise.resolve(false);
+    if (this.scanInFlight) return this.scanInFlight;
+    const running = this.runScan();
+    this.scanInFlight = running;
+    void running.finally(() => { if (this.scanInFlight === running) this.scanInFlight = undefined; });
+    return running;
+  }
+
+  private async runScan(): Promise<boolean> {
+    if (!this.client) return false;
     try {
       const result = await scanCodexThreads(this.client, this.database, { lookbackHours: this.lookbackHours });
+      if (this.stopped) return false;
       this.status.state = "ready";
       this.status.lastScanAt = new Date().toISOString();
       this.status.lastResult = result;
       delete this.status.lastError;
+      this.rememberDiagnostic("ready", result);
       if (result.observationsAdded > 0) this.onChange();
+      return true;
     } catch (error) {
       this.status.state = "error";
       this.status.lastError = error instanceof Error ? error.message : "Codex 扫描失败";
+      this.rememberDiagnostic("error", undefined, this.status.lastError);
+      console.error(`Codex scan failed: ${this.status.lastError}`);
+      this.client?.close();
+      this.client = undefined;
+      return false;
     }
   }
 }

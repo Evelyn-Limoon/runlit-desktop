@@ -175,13 +175,17 @@ h1 { margin: 0; color: #fffdf6; font: 680 22px/1.28 "Segoe UI Variable Display",
 .settings-back { display: inline-flex; align-items: center; gap: 4px; padding: 5px 7px 5px 3px; color: #b9bdb4; background: transparent; border: 0; border-radius: 7px; font-size: 11px; cursor: pointer; }
 .settings-back:hover { color: #fff; background: rgba(255,255,255,.06); }
 .settings-content { min-height: 0; overflow-y: auto; padding: 20px; scrollbar-width: thin; scrollbar-color: rgba(232,180,77,.35) transparent; }
-.adapter-page-actions { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.adapter-page-actions { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 10px; }
+.diagnostics-button { display: inline-flex; align-items: center; gap: 5px; padding: 7px 10px; color: #d6d8ce; background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.12); border-radius: 8px; font-size: 10px; cursor: pointer; }
+.diagnostics-button:hover { color: #fff; background: rgba(255,255,255,.08); }
+.diagnostics-button:disabled { opacity: .5; cursor: default; }
 .add-adapter-button { display: inline-flex; align-items: center; gap: 5px; padding: 7px 10px; color: #16130a; background: var(--gold); border: 0; border-radius: 8px; font-size: 10px; font-weight: 750; cursor: pointer; box-shadow: 0 5px 16px rgba(232,180,77,.12); }
 .add-adapter-button:hover { filter: brightness(1.06); }
 .settings-intro { display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: start; padding: 13px 14px; margin-bottom: 14px; color: var(--gold); border: 1px solid rgba(232,180,77,.14); background: rgba(232,180,77,.045); border-radius: 12px; }
 .settings-intro h1 { font-size: 16px; }
 .settings-intro p { margin: 5px 0 0; color: #aeb2a8; font-size: 11px; line-height: 1.5; }
 .settings-error { margin-bottom: 10px; padding: 8px 10px; color: #ffb4ad; background: rgba(228,115,110,.08); border: 1px solid rgba(228,115,110,.2); border-radius: 8px; font-size: 10px; }
+.diagnostic-message { margin-bottom: 10px; padding: 8px 10px; color: #93cdaa; background: rgba(117,198,152,.07); border: 1px solid rgba(117,198,152,.18); border-radius: 8px; font-size: 10px; }
 .add-adapter-form { display: grid; grid-template-columns: 94px minmax(0,1fr); gap: 8px 10px; align-items: center; margin-bottom: 12px; padding: 13px; background: rgba(117,198,152,.035); border: 1px solid rgba(117,198,152,.18); border-radius: 12px; }
 .add-adapter-heading { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
 .add-adapter-heading strong { color: #eef0e9; font-size: 12px; }
@@ -214,6 +218,7 @@ h1 { margin: 0; color: #fffdf6; font: 680 22px/1.28 "Segoe UI Variable Display",
 .adapter-scan { margin-top: 5px; color: #7f857c; font-size: 8.5px; }
 .adapter-scan.fresh { color: #75aa89; }
 .adapter-scan.stale { color: #c18d68; }
+.adapter-diagnostics { margin-top: 7px; padding-left: 8px; color: #aeb3a8; border-left: 2px solid rgba(232,180,77,.3); font-size: 8.5px; line-height: 1.5; overflow-wrap: anywhere; }
 .adapter-refresh { display: inline-flex; align-items: center; gap: 4px; padding: 6px 7px; color: #c8b47e; background: transparent; border: 1px solid rgba(232,180,77,.15); border-radius: 7px; font-size: 9px; cursor: pointer; }
 .adapter-refresh:hover { color: var(--gold); background: rgba(232,180,77,.06); }
 .adapter-refresh:disabled { opacity: .45; cursor: default; }

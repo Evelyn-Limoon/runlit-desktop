@@ -19,6 +19,19 @@ function Test-RunLitDaemon {
     }
 }
 
+function Test-RunLitOwnedDaemon {
+    if (-not (Test-RunLitDaemon)) { return $false }
+    $tokenPath = Join-Path $env:RUNLIT_DATA_DIR 'auth-token'
+    if (-not (Test-Path -LiteralPath $tokenPath -PathType Leaf)) { return $false }
+    $token = (Get-Content -LiteralPath $tokenPath -Raw).Trim()
+    if ($token -notmatch '^[0-9a-fA-F]{64}$') { return $false }
+    try {
+        $response = Invoke-RestMethod -Uri 'http://127.0.0.1:47831/diagnostics/report' -Headers @{ Authorization = "Bearer $token" } -TimeoutSec 2
+        return $response.schemaVersion -eq 1
+    }
+    catch { return $false }
+}
+
 function Resolve-Cargo {
     $command = Get-Command cargo -ErrorAction SilentlyContinue
     if ($command) { return $command.Source }
@@ -59,6 +72,7 @@ function Resolve-CodexExecutable {
 }
 
 Set-Location -LiteralPath $projectRoot
+$env:RUNLIT_DATA_DIR = Join-Path $projectRoot '.runlit'
 
 $codexExecutable = Resolve-CodexExecutable
 if ($codexExecutable) {
@@ -101,6 +115,9 @@ if (-not $desktopExecutable -or -not (Test-Path -LiteralPath $desktopExecutable)
     throw 'RunLit desktop output is missing. Remove -NoBuild to perform the first build.'
 }
 
+if ((Test-RunLitDaemon) -and -not (Test-RunLitOwnedDaemon)) {
+    throw 'Another RunLit daemon is using 127.0.0.1:47831 with a different data directory. Exit that instance before starting this source checkout.'
+}
 if (-not (Test-RunLitDaemon)) {
     $node = Get-Command node -ErrorAction SilentlyContinue
     if (-not $node) { throw 'Node.js 24+ is required to run the RunLit daemon.' }
@@ -110,7 +127,7 @@ if (-not (Test-RunLitDaemon)) {
     $ready = $false
     for ($attempt = 0; $attempt -lt 30; $attempt += 1) {
         Start-Sleep -Milliseconds 200
-        if (Test-RunLitDaemon) { $ready = $true; break }
+        if (Test-RunLitOwnedDaemon) { $ready = $true; break }
     }
     if (-not $ready) { throw 'RunLit daemon did not start on 127.0.0.1:47831.' }
 }

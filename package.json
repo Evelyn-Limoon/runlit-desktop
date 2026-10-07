@@ -30,10 +30,13 @@
     "tauri": "npm run tauri -w @runlit/desktop"
   },
   "devDependencies": {
-    "concurrently": "10.0.5",
+    "concurrently": "^10.0.5",
     "esbuild": "0.28.2"
   },
   "engines": {
     "node": ">=24"
+  },
+  "overrides": {
+    "shell-quote": "1.12.0"
   }
 }

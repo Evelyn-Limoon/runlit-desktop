@@ -444,6 +444,8 @@ export class RunlitDatabase {
     const hasTrustedBuildStart = observations.some((observation) => observation.kind === "build.started"
       && observation.strength === "strong"
       && ["app_server", "hook", "editor_bridge", "local_store"].includes(observation.source));
+    const hasTimeCorrelatedOutput = hasTrustedBuildStart && evidenceRows.some((item) =>
+      item.verification_status === "verified" && item.strength === "medium");
     const missingEvidence = [
       ...(!hasScope ? ["工作对象"] : []),
       ...(!hasBuildBehavior ? ["构建行为"] : []),
@@ -452,7 +454,9 @@ export class RunlitDatabase {
     const status = missingEvidence.length === 0 ? "qualified" : "candidate";
     const unresolvedEvidence = evidenceRows.find((item) => item.verification_status !== "verified");
     const reason = status === "qualified"
-      ? hasVerifiedOutput ? "已确认会话身份、工作对象、构建行为和成果物" : "已确认会话身份、工作对象和强构建活动；成果待生成"
+      ? hasVerifiedOutput ? "已确认会话身份、工作对象、构建行为和成果物"
+        : hasTimeCorrelatedOutput ? "已确认 Codex 执行和同时段的本地成果；文件归属仍待确认"
+          : "已确认会话身份、工作对象和强构建活动；成果待生成"
       : unresolvedEvidence?.reason ?? `缺少：${missingEvidence.join("、")}`;
 
     this.db.prepare(`
@@ -647,7 +651,7 @@ export class RunlitDatabase {
         VALUES (?, ?, ?, ?, ?, 'result', ?)
       `).run(
         versionId, taskId, previous?.id ?? null, (previous?.ordinal ?? -1) + 1,
-        `已确认成果物：${currentEvidence.label}`, event.occurredAt,
+        `${currentEvidence.confidence === "confirmed" ? "已确认成果物" : "检测到可能的成果物"}：${currentEvidence.label}`, event.occurredAt,
       );
       this.db.prepare(`
         INSERT OR IGNORE INTO artifacts(id, version_id, kind, label, target, confidence)
