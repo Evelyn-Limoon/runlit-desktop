@@ -47,3 +47,11 @@ body:
       label: Expected and actual behavior
     validations:
       required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostic report (optional)
+      description: In RunLit, open AI Tool Connections and select Save diagnostic report. Review the JSON before sharing; do not paste tokens, personal data, or full daemon logs.
+      placeholder: Paste the relevant adapter state and scan counts, or attach the reviewed report.
+    validations:
+      required: false

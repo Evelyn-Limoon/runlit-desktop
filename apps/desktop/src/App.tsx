@@ -52,6 +52,12 @@ type AdapterStatus = {
   lastError?: string;
   removable?: boolean;
   capability?: "artifacts_only";
+  lastResult?: {
+    threadsSeen: number; threadsRead: number; missingWorkspace: number; missingPath: number;
+    outsideLookback: number; unchanged: number; readErrors: number;
+    threadsWithoutFileChange: number; timeCorrelatedArtifacts: number;
+  };
+  diagnosticHistory?: { at: string; state: string; result?: AdapterStatus["lastResult"]; errorCode?: string }[];
 };
 
 type AdapterHealth = {
@@ -84,6 +90,18 @@ function formatScanAge(value?: string) {
   if (!Number.isFinite(elapsed)) return "检测时间不可用";
   if (elapsed < 60_000) return `最近检测 ${Math.max(1, Math.round(elapsed / 1_000))} 秒前`;
   return `最近检测 ${Math.round(elapsed / 60_000)} 分钟前`;
+}
+
+function codexDiagnosticSummary(adapter: AdapterStatus) {
+  const scan = adapter.lastResult;
+  if (!scan) return ["尚未完成 Codex 会话扫描。"];
+  const detail = [...(adapter.diagnosticHistory ?? [])].reverse().find((entry) => entry.result?.threadsRead)?.result;
+  const lines = [
+    `发现 ${scan.threadsSeen} 个会话；工作目录缺失 ${scan.missingWorkspace}、目录不可访问 ${scan.missingPath}、超出回溯范围 ${scan.outsideLookback}、详情读取失败 ${scan.readErrors}。`,
+  ];
+  if (detail) lines.push(`最近详细检查 ${detail.threadsRead} 个会话；${detail.threadsWithoutFileChange} 个没有直接文件变更；找到 ${detail.timeCorrelatedArtifacts} 个同时段本地候选成果。`);
+  else if (scan.threadsSeen > 0) lines.push("已找到 Codex，但尚未取得足够的成果证据。可保存诊断报告继续排查。");
+  return lines;
 }
 
 function isTauri() {
@@ -578,6 +596,7 @@ function AdapterSettingsPanel({ panelRef, onClose }: { panelRef: RefObject<HTMLE
   const [adapters, setAdapters] = useState<Record<string, AdapterStatus>>({});
   const [loadingId, setLoadingId] = useState<string>();
   const [error, setError] = useState<string>();
+  const [diagnosticMessage, setDiagnosticMessage] = useState<string>();
   const [workBuddyPath, setWorkBuddyPath] = useState("");
   const [showAddTool, setShowAddTool] = useState(false);
   const [editingId, setEditingId] = useState<string>();
@@ -612,6 +631,33 @@ function AdapterSettingsPanel({ panelRef, onClose }: { panelRef: RefObject<HTMLE
       setError(undefined);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "重新检测失败");
+    } finally {
+      setLoadingId(undefined);
+    }
+  };
+
+  const saveDiagnostics = async () => {
+    setLoadingId("diagnostics");
+    try {
+      const response = await fetch(`${API}/diagnostics/report`, { cache: "no-store" });
+      if (!response.ok) throw new Error(`读取诊断信息失败：${response.status}`);
+      const report = await response.json() as Record<string, unknown>;
+      const contents = JSON.stringify(report, null, 2);
+      if (isTauri()) {
+        const saved = await invoke<string | null>("save_diagnostic_report", { contents });
+        if (saved) setDiagnosticMessage("诊断报告已保存到所选位置。");
+      } else {
+        const url = URL.createObjectURL(new Blob([contents], { type: "application/json" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "runlit-diagnostics.json";
+        link.click();
+        URL.revokeObjectURL(url);
+        setDiagnosticMessage("诊断报告已下载。");
+      }
+      setError(undefined);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "无法保存诊断报告");
     } finally {
       setLoadingId(undefined);
     }
@@ -709,6 +755,7 @@ function AdapterSettingsPanel({ panelRef, onClose }: { panelRef: RefObject<HTMLE
       </header>
       <div className="settings-content">
         <div className="adapter-page-actions">
+          <button className="diagnostics-button" onClick={() => void saveDiagnostics()} disabled={loadingId === "diagnostics"}><FileText size={14} />{loadingId === "diagnostics" ? "正在整理" : "保存诊断报告"}</button>
           <button className="add-adapter-button" onClick={() => { if (showAddTool && !editingId) closeEditor(); else { setEditingId(undefined); setNewTool({ displayName: "", provider: "", watchPath: "" }); setShowAddTool(true); } }} aria-expanded={showAddTool}><Plus size={14} />添加 AI 工具</button>
         </div>
         <div className="settings-intro">
@@ -716,6 +763,7 @@ function AdapterSettingsPanel({ panelRef, onClose }: { panelRef: RefObject<HTMLE
           <div><h1>自动发现，必要时手动校准</h1><p>内置连接可读取任务状态和成果证据；手动添加的工具只监控指定成果目录。RunLit 不保存聊天正文。</p></div>
         </div>
         {error && <div className="settings-error" role="alert">{error}</div>}
+        {diagnosticMessage && <div className="diagnostic-message" role="status">{diagnosticMessage}</div>}
         {showAddTool && (
           <section className="add-adapter-form" aria-label="添加 AI 工具">
             <div className="add-adapter-heading"><strong>{editingId ? "修改 AI 工具接入" : "添加本地 AI 工具"}</strong><span>{editingId ? "修复名称或成果目录" : "无需写代码的快速接入"}</span></div>
@@ -736,6 +784,7 @@ function AdapterSettingsPanel({ panelRef, onClose }: { panelRef: RefObject<HTMLE
                 <p>{adapter.detail ?? adapterModeLabel(adapter.connectionMode)}</p>
                 <code>{adapter.dataPath ?? adapter.executablePath ?? "等待自动发现安装位置"}</code>
                 <div className={`adapter-scan ${adapterIsFresh(adapter) ? "fresh" : "stale"}`}>{formatScanAge(adapter.lastScanAt)}</div>
+                {adapter.id === "codex" && <div className="adapter-diagnostics">{codexDiagnosticSummary(adapter).map((line) => <div key={line}>{line}</div>)}</div>}
                 {adapter.id === "workbuddy" && adapter.state !== "ready" && (
                   <div className="manual-path">
                     <label htmlFor="workbuddy-data-path">WorkBuddy 数据目录</label>

@@ -135,6 +135,69 @@ test("qualifies a candidate when lifecycle advances but the App Server revision 
   }
 });
 
+test("shows a candidate artifact for a completed Codex command with a matching local file update", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "runlit-codex-command-output-"));
+  const target = join(directory, "customer-note.md");
+  const startedAt = Date.parse("2026-09-04T09:00:00.000Z") / 1000;
+  writeFileSync(target, "material local output", "utf8");
+  const modifiedAt = new Date((startedAt + 30) * 1000);
+  utimesSync(target, modifiedAt, modifiedAt);
+  const detail: CodexThreadDetail = {
+    id: "command-output", name: "更新本地文档", cwd: directory, updatedAt: startedAt + 60,
+    turns: [{
+      id: "command-turn", status: "completed", startedAt, completedAt: startedAt + 60,
+      items: [{ id: "command", type: "commandExecution", status: "completed", cwd: directory,
+        exitCode: 0, commandActions: [{ type: "unknown" }] }],
+    }],
+  };
+  const client: CodexReadClient = {
+    async listThreads() { return { data: [detail], nextCursor: null }; },
+    async readThread() { return detail; },
+    readLifecycle() { return { turnId: "command-turn", status: "completed", occurredAt: "2026-09-04T09:01:00.000Z" }; },
+  };
+  const database = new RunlitDatabase(":memory:");
+  try {
+    const result = await scanCodexThreads(client, database, { now: new Date("2026-09-04T09:01:10.000Z") });
+    const task = database.snapshot().tasks[0];
+    assert.equal(result.timeCorrelatedArtifacts, 1);
+    assert.equal(result.tasksResolved, 1);
+    assert.equal(task?.versions[0]?.artifacts[0]?.target, target);
+    assert.equal(task?.versions[0]?.artifacts[0]?.confidence, "candidate");
+    assert.match(database.candidates()[0]?.reason ?? "", /文件归属仍待确认/);
+  } finally {
+    database.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("does not infer a Codex artifact from an unrelated or read-only command", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "runlit-codex-no-command-output-"));
+  const target = join(directory, "document.md");
+  const startedAt = Date.parse("2026-09-04T09:00:00.000Z") / 1000;
+  writeFileSync(target, "pre-existing document", "utf8");
+  const oldTime = new Date((startedAt - 3600) * 1000);
+  utimesSync(target, oldTime, oldTime);
+  const detail: CodexThreadDetail = {
+    id: "read-only", cwd: directory, updatedAt: startedAt + 60,
+    turns: [{ id: "read-turn", status: "completed", startedAt, completedAt: startedAt + 60,
+      items: [{ id: "command", type: "commandExecution", status: "completed", cwd: directory,
+        exitCode: 0, commandActions: [{ type: "read" }] }] }],
+  };
+  const client: CodexReadClient = {
+    async listThreads() { return { data: [detail], nextCursor: null }; },
+    async readThread() { return detail; },
+  };
+  const database = new RunlitDatabase(":memory:");
+  try {
+    const result = await scanCodexThreads(client, database, { now: new Date("2026-09-04T09:01:10.000Z") });
+    assert.equal(result.timeCorrelatedArtifacts, 0);
+    assert.equal(database.snapshot().tasks.length, 0);
+  } finally {
+    database.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("creates one version per completed Codex turn and follows the latest turn lifecycle", async () => {
   const directory = mkdtempSync(join(tmpdir(), "runlit-codex-adapter-"));
   const target = join(directory, "result.md");
@@ -182,8 +245,16 @@ test("creates one version per completed Codex turn and follows the latest turn l
     const second = await scanCodexThreads(client, database, { now: new Date("2026-09-04T05:02:00.000Z") });
     const snapshot = database.snapshot();
 
-    assert.deepEqual(first, { threadsSeen: 2, threadsRead: 2, observationsAdded: 5, tasksResolved: 1 });
-    assert.deepEqual(second, { threadsSeen: 2, threadsRead: 1, observationsAdded: 0, tasksResolved: 0 });
+    assert.equal(first.threadsSeen, 2);
+    assert.equal(first.threadsRead, 2);
+    assert.equal(first.observationsAdded, 5);
+    assert.equal(first.tasksResolved, 1);
+    assert.equal(first.threadsWithoutFileChange, 1);
+    assert.equal(second.threadsSeen, 2);
+    assert.equal(second.threadsRead, 1);
+    assert.equal(second.observationsAdded, 0);
+    assert.equal(second.tasksResolved, 0);
+    assert.equal(second.unchanged, 1);
     assert.equal(snapshot.tasks.length, 1);
     assert.equal(snapshot.tasks[0]?.providerSessionId, "build");
     assert.equal(snapshot.tasks[0]?.status, "completed");

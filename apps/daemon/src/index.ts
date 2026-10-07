@@ -85,6 +85,30 @@ const server = createServer(async (req, res) => {
   }
   if (req.method === "GET" && req.url === "/health") return sendJson(res, 200, { ok: true, service: "runlit-daemon", mode });
   if (!requestIsTrusted(req, authToken)) return sendJson(res, 401, { error: "RunLit authorization required" });
+  if (req.method === "GET" && req.url === "/diagnostics/report") {
+    const statuses = adapterStatuses();
+    return sendJson(res, 200, {
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      appVersion: "0.1.0",
+      runtime: { platform: process.platform, arch: process.arch, node: process.version, mode },
+      taskCount: database.taskCount(),
+      hiddenTaskCount: database.hiddenTaskCount(),
+      observationCount: database.observationCount(),
+      candidateCounts: database.candidateCounts(),
+      evidenceCounts: database.evidenceCounts(),
+      adapters: Object.fromEntries(Object.entries(statuses).map(([id, status]) => [id, {
+        enabled: status.enabled,
+        state: status.state,
+        connectionMode: status.connectionMode,
+        lastScanAt: status.lastScanAt ?? null,
+        ...(id === "codex" ? {
+          lastResult: status.lastResult ?? null,
+          diagnosticHistory: status.diagnosticHistory ?? [],
+        } : {}),
+      }])),
+    });
+  }
   if (req.method === "GET" && req.url === "/diagnostics") return sendJson(res, 200, {
     mode,
     taskCount: database.taskCount(),

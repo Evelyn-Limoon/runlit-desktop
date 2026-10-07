@@ -34,6 +34,7 @@ function apply(database: RunlitDatabase, event: RunlitEvent) {
 function filesModifiedAfter(root: string, since: number) {
   const changed: string[] = [];
   let filesSeen = 0;
+  let latestMtime = 0;
   const visit = (directory: string) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       if (entry.isDirectory() && IGNORED_DIRECTORIES.has(entry.name)) continue;
@@ -42,12 +43,14 @@ function filesModifiedAfter(root: string, since: number) {
       else if (entry.isFile()) {
         filesSeen += 1;
         if (filesSeen > MAX_FILES) throw new Error(`监控目录超过 ${MAX_FILES.toLocaleString()} 个文件，请选择更具体的成果目录`);
-        if (statSync(target).mtimeMs > since) changed.push(target);
+        const mtime = statSync(target).mtimeMs;
+        latestMtime = Math.max(latestMtime, mtime);
+        if (mtime > since) changed.push(target);
       }
     }
   };
   visit(root);
-  return { changed, filesSeen };
+  return { changed, filesSeen, latestMtime };
 }
 
 function artifactFor(paths: string[], workspace: string) {
@@ -124,10 +127,22 @@ export class GenericFolderAdapter implements RunlitAdapter {
     this.stopped = false;
     const stored = this.database.adapterCheckpoint(this.status.id)?.cursor;
     const parsed = stored ? Date.parse(stored) : Number.NaN;
-    this.cursorMs = Number.isFinite(parsed) ? parsed : Date.now();
+    if (!Number.isFinite(parsed)) {
+      try {
+        const baseline = filesModifiedAfter(this.config.watchPath, Number.POSITIVE_INFINITY);
+        this.saveCursor(Math.max(Date.now(), baseline.latestMtime));
+        this.status.lastScanAt = new Date().toISOString();
+        this.status.lastResult = { filesSeen: baseline.filesSeen, pendingFiles: 0 };
+      } catch (error) {
+        this.status.state = "error";
+        this.status.lastError = error instanceof Error ? error.message : "本地成果目录扫描失败";
+        this.schedule();
+        return;
+      }
+    } else this.cursorMs = parsed;
     this.status.state = "ready";
     this.status.lastError = undefined;
-    await this.scan();
+    if (Number.isFinite(parsed)) await this.scan();
     this.schedule();
   }
 
