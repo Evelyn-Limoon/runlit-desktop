@@ -67,7 +67,7 @@ jobs:
           Copy-Item -LiteralPath $setup.Path -Destination release-input
       - name: Upload unsigned artifact for SignPath origin verification
         id: unsigned-artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: runlit-windows-unsigned-${{ env.RELEASE_TAG }}
           path: release-input/*

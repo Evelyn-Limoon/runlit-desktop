@@ -74,7 +74,7 @@ jobs:
       - name: Clean-runner install, launch, exit, and uninstall smoke test
         shell: pwsh
         run: ./scripts/windows-release-smoke.ps1 -SetupPath (Resolve-Path 'apps/desktop/src-tauri/target/release/bundle/nsis/Runlit_*-setup.exe').Path
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: runlit-windows-native-bundle
           path: apps/desktop/src-tauri/target/release/bundle/**
